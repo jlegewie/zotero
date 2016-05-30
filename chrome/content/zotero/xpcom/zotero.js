@@ -1223,6 +1223,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	 * Launch a file, the best way we can
 	 */
 	this.launchFile = function (file) {
+		file = Zotero.File.pathToFile(file);
 		try {
 			file.launch();
 		}
@@ -2327,6 +2328,9 @@ Zotero.Prefs = new function(){
 			else {
 				Zotero.Schema.stopRepositoryTimer();
 			}
+		}],
+		[ "layout", function(val) {
+			Zotero.getActiveZoteroPane().updateLayout();
 		}],
 		[ "note.fontSize", function(val) {
 			if (val < 6) {
