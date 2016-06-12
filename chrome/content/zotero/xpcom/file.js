@@ -221,47 +221,54 @@ Zotero.File = new function(){
 		};
 		
 		var deferred = Zotero.Promise.defer();
-		NetUtil.asyncFetch(source, function(inputStream, status) {
-			if (!Components.isSuccessCode(status)) {
-				deferred.reject(new Components.Exception("File read operation failed", status));
-				return;
-			}
-			
-			try {
-				try {
-					var bytesToFetch = inputStream.available();
-				}
-				catch (e) {
-					// The stream is closed automatically when end-of-file is reached,
-					// so this throws for empty files
-					if (e.name == "NS_BASE_STREAM_CLOSED") {
-						deferred.resolve("");
-					}
-				}
-				
-				if (maxLength && maxLength < bytesToFetch) {
-					bytesToFetch = maxLength;
-				}
-				
-				if (bytesToFetch == 0) {
-					deferred.resolve("");
+		try {
+			NetUtil.asyncFetch(source, function(inputStream, status) {
+				if (!Components.isSuccessCode(status)) {
+					deferred.reject(new Components.Exception("File read operation failed", status));
 					return;
 				}
 				
-				deferred.resolve(
-					NetUtil.readInputStreamToString(
+				try {
+					try {
+						var bytesToFetch = inputStream.available();
+					}
+					catch (e) {
+						// The stream is closed automatically when end-of-file is reached,
+						// so this throws for empty files
+						if (e.name == "NS_BASE_STREAM_CLOSED") {
+							Zotero.debug("RESOLVING2");
+							deferred.resolve("");
+						}
+						deferred.reject(e);
+					}
+					
+					if (maxLength && maxLength < bytesToFetch) {
+						bytesToFetch = maxLength;
+					}
+					
+					if (bytesToFetch == 0) {
+						deferred.resolve("");
+						return;
+					}
+					
+					deferred.resolve(NetUtil.readInputStreamToString(
 						inputStream,
 						bytesToFetch,
 						options
-					)
-				);
-			}
-			catch (e) {
-				deferred.reject(e);
-			}
-		});
+					));
+				}
+				catch (e) {
+					deferred.reject(e);
+				}
+			});
+		}
+		catch(e) {
+			// Make sure this get logged correctly
+			Zotero.logError(e);
+			throw e;
+		}
 		return deferred.promise;
-	};
+	}
 	
 	
 	/**
@@ -731,7 +738,7 @@ Zotero.File = new function(){
 					return;
 				}
 				if (entry.isDir) {
-					entries.concat(yield _addZipEntries(rootPath, path, zipWriter));
+					entries.concat(yield _addZipEntries(rootPath, entry.path, zipWriter));
 					return;
 				}
 				if (entry.name.startsWith('.')) {
@@ -912,6 +919,8 @@ Zotero.File = new function(){
 	
 	
 	this.checkFileAccessError = function (e, file, operation) {
+		file = this.pathToFile(file);
+		
 		var str = 'file.accessError.';
 		if (file) {
 			str += 'theFile'
