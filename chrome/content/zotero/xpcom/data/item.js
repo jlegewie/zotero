@@ -2399,7 +2399,7 @@ Zotero.Item.prototype.getFilename = function () {
 
 
 /**
- * Asynchronous cached check for file existence, used for items view
+ * Asynchronous check for file existence
  */
 Zotero.Item.prototype.fileExists = Zotero.Promise.coroutine(function* () {
 	if (!this.isAttachment()) {
@@ -2561,6 +2561,31 @@ Zotero.Item.prototype.relinkAttachmentFile = Zotero.Promise.coroutine(function* 
 	});
 	
 	return true;
+});
+
+
+Zotero.Item.prototype.deleteAttachmentFile = Zotero.Promise.coroutine(function* () {
+	if (!this.isImportedAttachment()) {
+		throw new Error("deleteAttachmentFile() can only be called on imported attachment items");
+	}
+	
+	var path = yield this.getFilePathAsync();
+	if (!path) {
+		Zotero.debug(`File not found for item ${this.libraryKey} in deleteAttachmentFile()`, 2);
+		return false;
+	}
+	
+	Zotero.debug("Deleting attachment file for item " + this.libraryKey);
+	try {
+		yield Zotero.File.removeIfExists(path);
+		this.attachmentSyncState = "to_download";
+		yield this.saveTx({ skipAll: true });
+		return true;
+	}
+	catch (e) {
+		Zotero.logError(e);
+		return false;
+	}
 });
 
 
@@ -2921,6 +2946,10 @@ Zotero.defineProperty(Zotero.Item.prototype, 'attachmentSyncedModificationTime',
 		}
 		if (parseInt(val) != val || val < 0) {
 			throw new Error("attachmentSyncedModificationTime must be a timestamp in milliseconds");
+		}
+		if (val < 10000000000) {
+			Zotero.logError("attachmentSyncedModificationTime should be a timestamp in milliseconds "
+				+ "-- " + val + " given");
 		}
 		
 		if (val == this._attachmentSyncedModificationTime) {
@@ -4006,6 +4035,7 @@ Zotero.Item.prototype.fromJSON = function (json) {
 			}
 			if (field == 'accessDate') {
 				this.setField(field, val);
+				setFields[field] = true;
 			}
 			else {
 				this[field] = val;
@@ -4072,16 +4102,21 @@ Zotero.Item.prototype.fromJSON = function (json) {
 					+ this.libraryKey);
 				continue;
 			}
-			isValidForType[field] = Zotero.ItemFields.isValidForType(
-				Zotero.ItemFields.getFieldIDFromTypeAndBase(itemTypeID, fieldID) || fieldID,
-				this.itemTypeID
-			);
+			// Convert to base-mapped field if necessary, so that setFields has the base-mapped field
+			// when it's checked for values from getUsedFields() below
+			let origFieldID = fieldID;
+			let origField = field;
+			fieldID = Zotero.ItemFields.getFieldIDFromTypeAndBase(itemTypeID, fieldID) || fieldID;
+			if (origFieldID != fieldID) {
+				field = Zotero.ItemFields.getName(fieldID);
+			}
+			isValidForType[field] = Zotero.ItemFields.isValidForType(fieldID, this.itemTypeID);
 			if (!isValidForType[field]) {
-				Zotero.logError("Discarding invalid field '" + field + "' for type " + itemTypeID
+				Zotero.logError("Discarding invalid field '" + origField + "' for type " + itemTypeID
 					+ " for item " + this.libraryKey);
 				continue;
 			}
-			this.setField(field, json[field]);
+			this.setField(field, json[origField]);
 			setFields[field] = true;
 		}
 	}
@@ -4089,8 +4124,7 @@ Zotero.Item.prototype.fromJSON = function (json) {
 	// Clear existing fields not specified
 	var previousFields = this.getUsedFields(true);
 	for (let field of previousFields) {
-		// Invalid fields will already have been cleared by the type change
-		if (!setFields[field] && isValidForType[field]) {
+		if (!setFields[field] && isValidForType[field] !== false) {
 			this.setField(field, false);
 		}
 	}
@@ -4203,12 +4237,23 @@ Zotero.Item.prototype.toJSON = function (options = {}) {
 		obj.dateModified = Zotero.Date.sqlToISO8601(this.dateModified);
 	}
 	
-	return this._postToJSON(env);
+	var json = this._postToJSON(env);
+	if (options.skipStorageProperties) {
+		delete json.md5;
+		delete json.mtime;
+	}
+	return json;
 }
 
 
 Zotero.Item.prototype.toResponseJSON = function (options = {}) {
-	var json = this.constructor._super.prototype.toResponseJSON.apply(this, options);
+	// Default to showing synced storage properties, since that's what the API does, and this function
+	// is generally used to emulate the API
+	if (options.syncedStorageProperties === undefined) {
+		options.syncedStorageProperties = true;
+	}
+	
+	var json = this.constructor._super.prototype.toResponseJSON.call(this, options);
 	
 	// creatorSummary
 	var firstCreator = this.getField('firstCreator');

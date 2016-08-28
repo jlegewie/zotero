@@ -494,6 +494,12 @@ Zotero.Sync.Storage.Local = {
 	},
 	
 	
+	/**
+	 * Mark all stored files for upload checking
+	 *
+	 * This is used when switching between storage modes in the preferences so that all existing files
+	 * are uploaded via the new mode if necessary.
+	 */
 	resetModeSyncStates: Zotero.Promise.coroutine(function* () {
 		var sql = "SELECT itemID FROM items JOIN itemAttachments USING (itemID) "
 			+ "WHERE libraryID=? AND itemTypeID=? AND linkMode IN (?, ?)";
@@ -504,7 +510,7 @@ Zotero.Sync.Storage.Local = {
 			Zotero.Attachments.LINK_MODE_IMPORTED_URL,
 		];
 		var itemIDs = yield Zotero.DB.columnQueryAsync(sql, params);
-		for (let itemID of items) {
+		for (let itemID of itemIDs) {
 			let item = Zotero.Items.get(itemID);
 			item._attachmentSyncState = this.SYNC_STATE_TO_UPLOAD;
 		}
@@ -896,6 +902,11 @@ Zotero.Sync.Storage.Local = {
 	
 	_deleteExistingAttachmentFiles: Zotero.Promise.method(function (item) {
 		var parentDir = Zotero.Attachments.getStorageDirectory(item).path;
+		// OS.File.DirectoryIterator, used by OS.File.removeDir(), isn't reliable on Travis,
+		// returning entry.isDir == false for subdirectories, so use nsIFile instead
+		if (Zotero.automatedTest) {
+			Zotero.File.pathToFile(parentDir).remove(true);
+		}
 		return OS.File.removeDir(parentDir);
 	}),
 	
@@ -943,6 +954,7 @@ Zotero.Sync.Storage.Local = {
 			remoteItemJSON = remoteItemJSON.data;
 			remoteItemJSON.dateModified = Zotero.Date.dateToISO(new Date(remoteItemJSON.mtime));
 			items.push({
+				libraryID,
 				left: localItemJSON,
 				right: remoteItemJSON,
 				changes: [],

@@ -216,21 +216,25 @@ describe("ZoteroPane", function() {
 			return selectLibrary(win);
 		})
 		
-		it("should show a hidden virtual folder", function* () {
+		it("should show a hidden virtual collection in My Library", function* () {
 			// Create unfiled, duplicate items
 			var title = Zotero.Utilities.randomString();
 			var item1 = yield createDataObject('item', { title });
 			var item2 = yield createDataObject('item', { title });
 			
-			// Start hidden
-			Zotero.Prefs.set('duplicateLibraries', "");
-			Zotero.Prefs.set('unfiledLibraries', "");
+			// Start hidden (tested in collectionTreeViewTest)
+			Zotero.Prefs.set('duplicateLibraries', `{"${userLibraryID}": false}`);
+			Zotero.Prefs.set('unfiledLibraries', `{"${userLibraryID}": false}`);
 			yield cv.refresh();
 			
 			// Show Duplicate Items
 			var id = "D" + userLibraryID;
 			assert.isFalse(cv.getRowIndexByID(id));
 			yield zp.setVirtual(userLibraryID, 'duplicates', true);
+			// Duplicate Items should be selected
+			assert.equal(cv.selectedTreeRow.id, id);
+			// Should be missing from pref
+			assert.isUndefined(JSON.parse(Zotero.Prefs.get('duplicateLibraries'))[userLibraryID])
 			
 			// Clicking should select both items
 			var row = cv.getRowIndexByID(id);
@@ -247,10 +251,33 @@ describe("ZoteroPane", function() {
 			id = "U" + userLibraryID;
 			assert.isFalse(cv.getRowIndexByID(id));
 			yield zp.setVirtual(userLibraryID, 'unfiled', true);
+			// Unfiled Items should be selected
+			assert.equal(cv.selectedTreeRow.id, id);
+			// Should be missing from pref
+			assert.isUndefined(JSON.parse(Zotero.Prefs.get('unfiledLibraries'))[userLibraryID])
+		});
+		
+		it("should expand library if collapsed when showing virtual collection", function* () {
+			// Start hidden (tested in collectionTreeViewTest)
+			Zotero.Prefs.set('duplicateLibraries', `{"${userLibraryID}": false}`);
+			yield cv.refresh();
+			
+			var libraryRow = cv.getRowIndexByID(Zotero.Libraries.userLibrary.treeViewID);
+			if (cv.isContainerOpen(libraryRow)) {
+				yield cv.toggleOpenState(libraryRow);
+				cv._saveOpenStates();
+			}
+			
+			// Show Duplicate Items
+			var id = "D" + userLibraryID;
+			yield zp.setVirtual(userLibraryID, 'duplicates', true);
+			
+			// Library should have been expanded and Duplicate Items selected
 			assert.ok(cv.getRowIndexByID(id));
+			assert.equal(cv.selectedTreeRow.id, id);
 		});
 		
-		it("should hide a virtual folder shown by default", function* () {
+		it("should hide a virtual collection in My Library", function* () {
 			yield cv.refresh();
 			
 			// Hide Duplicate Items
@@ -258,36 +285,62 @@ describe("ZoteroPane", function() {
 			assert.ok(yield cv.selectByID(id));
 			yield zp.setVirtual(userLibraryID, 'duplicates', false);
 			assert.isFalse(cv.getRowIndexByID(id));
+			assert.isFalse(JSON.parse(Zotero.Prefs.get('duplicateLibraries'))[userLibraryID])
 			
 			// Hide Unfiled Items
 			id = "U" + userLibraryID;
 			assert.ok(yield cv.selectByID(id));
 			yield zp.setVirtual(userLibraryID, 'unfiled', false);
 			assert.isFalse(cv.getRowIndexByID(id));
+			assert.isFalse(JSON.parse(Zotero.Prefs.get('unfiledLibraries'))[userLibraryID])
 		});
 		
-		it("should hide an explicitly shown virtual folder", function* () {
-			// Start shown
-			Zotero.Prefs.set('duplicateLibraries', "" + userLibraryID);
-			Zotero.Prefs.set('unfiledLibraries', "" + userLibraryID);
+		it("should hide a virtual collection in a group", function* () {
 			yield cv.refresh();
 			
-			// Hide Duplicate Items
-			var id = "D" + userLibraryID;
-			assert.ok(yield cv.selectByID(id));
-			yield waitForItemsLoad(win);
-			yield zp.setVirtual(userLibraryID, 'duplicates', false);
-			assert.isFalse(cv.getRowIndexByID(id));
-			assert.equal(cv.getSelectedLibraryID(), userLibraryID);
+			var group = yield createGroup();
+			var groupRow = cv.getRowIndexByID(group.treeViewID);
+			var rowCount = cv.rowCount;
 			
+			// Make sure group is open
+			if (!cv.isContainerOpen(groupRow)) {
+				yield cv.toggleOpenState(groupRow);
+			}
+			
+			// Make sure Duplicate Items is showing
+			var id = "D" + group.libraryID;
+			assert.ok(cv.getRowIndexByID(id));
+			
+			// Hide Duplicate Items
+			assert.ok(yield cv.selectByID(id));
+			yield zp.setVirtual(group.libraryID, 'duplicates', false);
+			// Row should have been removed
+			assert.isFalse(cv.getRowIndexByID(id));
+			// Pref should have been updated
+			Zotero.debug(Zotero.Prefs.get('duplicateLibraries'));
+			assert.isFalse(JSON.parse(Zotero.Prefs.get('duplicateLibraries'))[group.libraryID]);
+			// Group row shouldn't have changed
+			assert.equal(cv.getRowIndexByID(group.treeViewID), groupRow);
+			// Group should remain open
+			assert.isTrue(cv.isContainerOpen(groupRow));
+			// Row count should be 1 less
+			assert.equal(cv.rowCount, --rowCount);
 			
 			// Hide Unfiled Items
-			id = "U" + userLibraryID;
+			id = "U" + group.libraryID;
 			assert.ok(yield cv.selectByID(id));
-			yield waitForItemsLoad(win);
-			yield zp.setVirtual(userLibraryID, 'unfiled', false);
+			// Hide Unfiled Items
+			yield zp.setVirtual(group.libraryID, 'unfiled', false);
+			// Row should have been removed
 			assert.isFalse(cv.getRowIndexByID(id));
-			assert.equal(cv.getSelectedLibraryID(), userLibraryID);
+			// Pref should have been udpated
+			assert.isFalse(JSON.parse(Zotero.Prefs.get('unfiledLibraries'))[group.libraryID]);
+			// Group row shouldn't have changed
+			assert.equal(cv.getRowIndexByID(group.treeViewID), groupRow);
+			// Group should remain open
+			assert.isTrue(cv.isContainerOpen(groupRow));
+			// Row count should be 1 less
+			assert.equal(cv.rowCount, --rowCount);
 		});
 	});
 	
@@ -300,14 +353,55 @@ describe("ZoteroPane", function() {
 					searchBox.search.addCondition("title", "contains", "foo")
 				);
 				searchBox.addCondition(c);
-				Zotero.debug("ACCEPTING");
 				win.document.documentElement.acceptDialog();
 			});
 			yield zp.editSelectedCollection();
 			yield promise;
 			var conditions = search.getConditions();
-			Zotero.debug(conditions);
-			assert.lengthOf(Object.keys(conditions), 2);
+			assert.lengthOf(Object.keys(conditions), 3);
+		});
+	});
+	
+	describe("#onCollectionSelected()", function() {
+		var cv;
+		
+		beforeEach(function* () {
+			cv = zp.collectionsView;
+			yield cv.selectLibrary(Zotero.Libraries.userLibraryID);
+			Zotero.Prefs.clear('itemsView.columnVisibility');
+			yield clearFeeds();
+		});
+		
+		it("should store column visibility settings when switching from default to feeds", function* () {
+			doc.getElementById('zotero-items-column-dateAdded').setAttribute('hidden', false);
+			var feed = yield createFeed();
+			yield cv.selectLibrary(feed.libraryID);
+			var settings = JSON.parse(Zotero.Prefs.get('itemsView.columnVisibility'));
+			assert.isOk(settings.default.dateAdded);
+		});
+		
+		it("should restore column visiblity when switching between default and feeds", function* () {
+			doc.getElementById('zotero-items-column-dateAdded').setAttribute('hidden', false);
+			var feed = yield createFeed();
+			yield cv.selectLibrary(feed.libraryID);
+			assert.equal(doc.getElementById('zotero-items-column-dateAdded').getAttribute('hidden'), 'true');
+			doc.getElementById('zotero-items-column-firstCreator').setAttribute('hidden', true);
+			yield cv.selectLibrary(Zotero.Libraries.userLibraryID);
+			assert.equal(doc.getElementById('zotero-items-column-dateAdded').getAttribute('hidden'), 'false');
+			yield cv.selectLibrary(feed.libraryID);
+			assert.equal(doc.getElementById('zotero-items-column-firstCreator').getAttribute('hidden'), 'true');
+		});
+		
+		it("should restore column visibility settings on restart", function* () {
+			doc.getElementById('zotero-items-column-dateAdded').setAttribute('hidden', false);
+			assert.equal(doc.getElementById('zotero-items-column-dateAdded').getAttribute('hidden'), 'false');
+			
+			win.close();
+			win = yield loadZoteroPane();
+			doc = win.document;
+			zp = win.ZoteroPane;
+			
+			assert.equal(doc.getElementById('zotero-items-column-dateAdded').getAttribute('hidden'), 'false');
 		});
 	});
 })

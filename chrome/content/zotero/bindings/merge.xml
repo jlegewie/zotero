@@ -28,7 +28,8 @@
 
 <bindings xmlns="http://www.mozilla.org/xbl"
 		  xmlns:xbl="http://www.mozilla.org/xbl"
-		  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+		  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+		  xmlns:html="http://www.w3.org/1999/xhtml">
 	
 	<binding id="merge-group">
 		<resources>
@@ -43,6 +44,8 @@
 				this._mergepane = this._id('mergepane');
 			]]>
 			</constructor>
+			
+			<field name="libraryID"/>
 			
 			<field name="_data"/>
 			<property name="data" onget="return this._data;">
@@ -68,7 +71,7 @@
 							break;
 						
 						default:
-							throw new Exception(`Unsupported merge object type '${type}'`);
+							throw new Error(`Unsupported merge object type '${type}'`);
 					}
 					
 					this._type = val;
@@ -95,7 +98,7 @@
 				<body>
 				<![CDATA[
 					if (this._data.left.deleted && this._data.right.deleted) {
-						throw new Exception("'left' and 'right' cannot both be deleted");
+						throw new Error("'left' and 'right' cannot both be deleted");
 					}
 					
 					// Check for note or attachment
@@ -109,6 +112,9 @@
 					
 					this._leftpane.showButton = showButton;
 					this._rightpane.showButton = showButton;
+					this._leftpane.libraryID = this.libraryID;
+					this._rightpane.libraryID = this.libraryID;
+					this._mergepane.libraryID = this.libraryID;
 					this._leftpane.data = this._data.left;
 					this._rightpane.data = this._data.right;
 					this._mergepane.data = this._data.merge;
@@ -293,11 +299,23 @@
 				</setter>
 			</property>
 			
+			<field name="libraryID"/>
+			
 			<field name="_data"/>
 			<property name="data" onget="return this._data">
 				<setter>
 				<![CDATA[
 					this._data = val;
+					
+					var button = this._id('choose-button');
+					if (this.showButton) {
+						button.label = Zotero.getString('sync.conflict.chooseThisVersion');
+						button.onclick = () => this.parent.choosePane(this);
+						button.hidden = false;
+					}
+					else {
+						button.hidden = true;
+					}
 					
 					if (val.deleted) {
 						this.deleted = true;
@@ -328,6 +346,24 @@
 					
 					var objbox = document.createElement(elementName);
 					
+					var parentRow = this._id('parent-row');
+					if (val.parentItem) {
+						parentRow.textContent = '';
+						
+						let label = document.createElement('span');
+						label.textContent = Zotero.getString('pane.item.parentItem');
+						parentRow.appendChild(label);
+						
+						let parentItem = Zotero.Items.getByLibraryAndKey(this.libraryID, val.parentItem);
+						let text = document.createTextNode(" " + parentItem.getDisplayTitle(true));
+						parentRow.appendChild(text);
+						
+						parentRow.hidden = false;
+					}
+					else {
+						parentRow.hidden = true;
+					}
+					
 					if (this._id('object-placeholder')) {
 						var placeholder = this._id('object-placeholder');
 						placeholder.parentNode.replaceChild(objbox, placeholder);
@@ -341,23 +377,12 @@
 					objbox.setAttribute("flex", "1");
 					objbox.mode = this.type == 'file' ? 'filemerge' : 'merge';
 					
-					var button = this._id('choose-button');
-					if (this.showButton) {
-						button.label = Zotero.getString('sync.conflict.chooseThisVersion');
-						button.onclick = function () {
-							this.parent.choosePane(this);
-						}.bind(this);
-						button.hidden = false;
-					}
-					else {
-						button.hidden = true;
-					}
-					
 					// Store JSON
 					this._data = val;
 					
 					// Create item from JSON for metadata box
 					var item = new Zotero.Item(val.itemType);
+					item.libraryID = this.libraryID;
 					item.fromJSON(val);
 					objbox.item = item;
 				]]>
@@ -387,6 +412,7 @@
 			<xul:vbox flex="1">
 				<xul:groupbox anonid="merge-pane" flex="1">
 					<xul:caption anonid="caption"/>
+					<html:div anonid="parent-row" hidden="true"/>
 					<xul:box anonid="object-placeholder"/>
 					<xul:hbox anonid="delete-box" hidden="true" flex="1">
 						<xul:label value="&zotero.merge.deleted;"/>

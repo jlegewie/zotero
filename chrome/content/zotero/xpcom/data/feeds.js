@@ -23,19 +23,41 @@
     ***** END LICENSE BLOCK *****
 */
 
+"use strict";
+
 // Mimics Zotero.Libraries
 Zotero.Feeds = new function() {
+	var _initTimeoutID;
+	var _initPromise;
+	
 	this.init = function () {
-		this._timeoutID = setTimeout(() => {
-			this.scheduleNextFeedCheck();
-			this._timeoutID = null;
+		_initTimeoutID = setTimeout(() => {
+			_initTimeoutID = null;
+			_initPromise = this.scheduleNextFeedCheck().then(() => _initPromise = null);
 		}, 5000);
+		
+		Zotero.SyncedSettings.onSyncDownload.addListener(Zotero.Libraries.userLibraryID, 'feeds', 
+			(oldValue, newValue, conflict) => { 
+				Zotero.Feeds.restoreFromJSON(newValue, conflict);
+			}
+		);
+		
+		Zotero.Notifier.registerObserver({notify: function(event) {
+			if (event == 'finish') {
+				Zotero.Feeds.updateFeeds();
+			}
+		}}, ['sync'], 'feedsUpdate');
 	};
 	
 	this.uninit = function () {
-		if (this._timeoutID) {
-			clearTimeout(this._timeoutID);
-			this._timeoutID = null
+		// Cancel feed check if not yet run
+		if (_initTimeoutID) {
+			clearTimeout(_initTimeoutID);
+			_initTimeoutID = null
+		}
+		// Cancel feed check if in progress
+		if (_initPromise) {
+			_initPromise.cancel();
 		}
 	};
 	
@@ -126,37 +148,38 @@ Zotero.Feeds = new function() {
 		Zotero.debug(json);
 		if (merge) {
 			let syncedFeeds = Zotero.SyncedSettings.get(Zotero.Libraries.userLibraryID, 'feeds');
+			// Overwrite with remote values for names, etc.
 			for (let url in json) {
-				if (syncedFeeds[url]) {
-					syncedFeeds[url].name = json[url].name;
-					syncedFeeds[url].cleanupAfter = json[url].cleanupAfter;
-					syncedFeeds[url].refreshInterval = json[url].refreshInterval;
-					for (let guid in json[url].markedAsRead) {
-						syncedFeeds[url].markedAsRead[guid] = true;
-					}
-				} else {
-					syncedFeeds[url] = json[url];
-				}
+				syncedFeeds[url] = json[url];
 			}
+			// But keep all local feeds
 			json = syncedFeeds;
 		}
+		json = this._compactifyFeedJSON(json);
 		yield Zotero.SyncedSettings.set(Zotero.Libraries.userLibraryID, 'feeds', json);
 		let feeds = Zotero.Feeds.getAll();
 		for (let feed of feeds) {
 			if (json[feed.url]) {
 				Zotero.debug("Feed " + feed.url + " exists remotely and locally");
+				feed.name = json[feed.url][0];
+				feed.cleanupAfter = json[feed.url][1];
+				feed.refreshInterval = json[feed.url][2];
 				delete json[feed.url];
 			} else {
 				Zotero.debug("Feed " + feed.url + " does not exist in remote JSON. Deleting");
-				yield feed.eraseTx();
+				yield feed.erase();
 			}
 		}
 		// Because existing json[feed.url] got deleted, `json` now only contains new feeds
 		for (let url in json) {
 			Zotero.debug("Feed " + url + " exists remotely but not locally. Creating");
-			let feed = new Zotero.Feed(json[url]);
-			yield feed.saveTx();
-			yield feed.updateFeed();
+			let feed = new Zotero.Feed({
+				url, 
+				name: json[url][0], 
+				cleanupAfter: json[url][1], 
+				refreshInterval: json[url[2]]
+			});
+			yield feed.save();
 		}
 	});
 	
@@ -259,4 +282,16 @@ Zotero.Feeds = new function() {
 		Zotero.debug("All feed updates done");
 		this.scheduleNextFeedCheck();
 	});
+	
+	// Conversion from expansive to compact format sync json
+	// TODO: Remove after beta
+	this._compactifyFeedJSON = function(json) {
+		for (let url in json) {
+			if(Array.isArray(json[url])) {
+				continue;
+			}
+			json[url] = [json[url].name, json[url].cleanupAfter, json[url].refreshInterval];
+		}
+		return json;
+	};
 }

@@ -440,7 +440,7 @@ Zotero.Search.prototype.removeCondition = function (searchConditionID) {
 	this._requireData('conditions');
 	
 	if (typeof this._conditions[searchConditionID] == 'undefined'){
-		throw ('Invalid searchConditionID ' + searchConditionID + ' in removeCondition()');
+		throw new Error('Invalid searchConditionID ' + searchConditionID + ' in removeCondition()');
 	}
 	
 	delete this._conditions[searchConditionID];
@@ -825,7 +825,7 @@ Zotero.Search.prototype.fromJSON = function (json) {
 	}
 	this.name = json.name;
 	
-	Object.keys(this.getConditions()).forEach(id => this.removeCondition(0));
+	Object.keys(this.getConditions()).forEach(id => this.removeCondition(id));
 	for (let i = 0; i < json.conditions.length; i++) {
 		let condition = json.conditions[i];
 		this.addCondition(
@@ -835,11 +835,6 @@ Zotero.Search.prototype.fromJSON = function (json) {
 		);
 	}
 }
-
-Zotero.Collection.prototype.toResponseJSON = function (options = {}) {
-	var json = this.constructor._super.prototype.toResponseJSON.apply(this, options);
-	return json;
-};
 
 
 Zotero.Search.prototype.toJSON = function (options = {}) {
@@ -851,8 +846,14 @@ Zotero.Search.prototype.toJSON = function (options = {}) {
 	obj.version = this.version;
 	obj.name = this.name;
 	var conditions = this.getConditions();
-	obj.conditions = Object.keys(conditions).map(x => conditions[x]);
-	
+	obj.conditions = Object.keys(conditions)
+		.map(x => ({
+			condition: conditions[x].condition
+				+ (conditions[x].mode !== false ? "/" + conditions[x].mode : ""),
+			operator: conditions[x].operator,
+			// TODO: Change joinMode to use 'is' + 'any' instead of operator 'any'?
+			value: conditions[x].value ? conditions[x].value : ""
+		}));
 	return this._postToJSON(env);
 }
 
@@ -2145,7 +2146,7 @@ Zotero.SearchConditions = new function(){
 				},
 				table: 'itemData',
 				field: 'value',
-				aliases: ['pages', 'section', 'seriesNumber','issue'],
+				aliases: ['pages', 'numPages', 'numberOfVolumes', 'section', 'seriesNumber','issue'],
 				template: true // mark for special handling
 			},
 			

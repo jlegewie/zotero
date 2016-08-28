@@ -102,6 +102,22 @@ describe("Zotero.Sync.Storage.Local", function () {
 		})
 	})
 	
+	describe("#resetModeSyncStates()", function () {
+		it("should reset attachment sync states to 'to_upload'", function* () {
+			var attachment = yield importFileAttachment('test.png');
+			attachment.attachmentSyncState = 'in_sync';
+			yield attachment.saveTx();
+			
+			var local = Zotero.Sync.Storage.Local;
+			yield local.resetModeSyncStates()
+			assert.strictEqual(attachment.attachmentSyncState, local.SYNC_STATE_TO_UPLOAD);
+			var state = yield Zotero.DB.valueQueryAsync(
+				"SELECT syncState FROM itemAttachments WHERE itemID=?", attachment.id
+			);
+			assert.strictEqual(state, local.SYNC_STATE_TO_UPLOAD);
+		});
+	});
+	
 	describe("#processDownload()", function () {
 		var file1Name = 'index.html';
 		var file1Contents = '<html><body>Test</body></html>';
@@ -124,7 +140,10 @@ describe("Zotero.Sync.Storage.Local", function () {
 			yield Zotero.File.putContentsAsync(OS.Path.join(subDir, file3Name), file3Contents);
 			
 			yield Zotero.File.zipDirectory(zipDir, zipFile);
-			yield OS.File.removeDir(zipDir);
+			// OS.File.DirectoryIterator, used by OS.File.removeDir(), isn't reliable on Travis,
+			// returning entry.isDir == false for subdirectories, so use nsIFile instead
+			//yield OS.File.removeDir(zipDir);
+			Zotero.File.pathToFile(zipDir).remove(true);
 		});
 		
 		it("should download and extract a ZIP file into the attachment directory", function* () {
@@ -140,7 +159,10 @@ describe("Zotero.Sync.Storage.Local", function () {
 			var dir = Zotero.Attachments.getStorageDirectoryByLibraryAndKey(libraryID, key).path;
 			yield OS.File.makeDir(
 				OS.Path.join(dir, 'subdir'),
-				{ from: Zotero.getZoteroDirectory().path }
+				{
+					from: Zotero.getZoteroDirectory().path,
+					unixMode: 0o755
+				}
 			);
 			yield Zotero.File.putContentsAsync(OS.Path.join(dir, 'A'), '');
 			yield Zotero.File.putContentsAsync(OS.Path.join(dir, 'subdir', 'B'), '');

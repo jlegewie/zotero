@@ -10,7 +10,7 @@ var zoteroObjectKeyRe = /^[23456789ABCDEFGHIJKLMNPQRSTUVWXYZ]{8}$/; // based on 
 function waitForDOMEvent(target, event, capture) {
 	var deferred = Zotero.Promise.defer();
 	var func = function(ev) {
-		target.removeEventListener("event", func, capture);
+		target.removeEventListener(event, func, capture);
 		deferred.resolve(ev);
 	}
 	target.addEventListener(event, func, capture);
@@ -74,7 +74,7 @@ function waitForWindow(uri, callback) {
 				.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
 				.getInterface(Components.interfaces.nsIDOMWindow);
 			// Give window code time to run on load
-			setTimeout(function () {
+			win.setTimeout(function () {
 				if (callback) {
 					try {
 						// If callback is a promise, wait for it
@@ -137,7 +137,7 @@ function waitForDialog(onOpen, button='accept', url) {
 			function acceptWhenEnabled() {
 				// Handle delayed buttons
 				if (dialog.document.documentElement.getButton(button).disabled) {
-					setTimeout(function () {
+					dialog.setTimeout(function () {
 						acceptWhenEnabled();
 					}, 250);
 				}
@@ -307,6 +307,9 @@ var createGroup = Zotero.Promise.coroutine(function* (props = {}) {
 	group.editable = props.editable === undefined ? true : props.editable;
 	group.filesEditable = props.filesEditable === undefined ? true : props.filesEditable;
 	group.version = props.version === undefined ? Zotero.Utilities.rand(1000, 10000) : props.version;
+	if (props.libraryVersion) {
+		group.libraryVersion = props.libraryVersion;
+	}
 	yield group.saveTx();
 	return group;
 });
@@ -385,7 +388,8 @@ function createUnsavedDataObject(objectType, params = {}) {
 	}
 	
 	if (objectType == 'search') {
-		obj.addCondition('title', 'contains', 'test');
+		obj.addCondition('title', 'contains', Zotero.Utilities.randomString());
+		obj.addCondition('title', 'isNot', Zotero.Utilities.randomString());
 	}
 	
 	Zotero.Utilities.assignProps(obj, params, allowedParams);
@@ -753,10 +757,14 @@ var generateTranslatorExportData = Zotero.Promise.coroutine(function* generateTr
  * @param {string} filename - The filename to import (in data directory)
  * @return {Promise<Zotero.Item>}
  */
-function importFileAttachment(filename) {
-	let testfile = getTestDataDirectory();
-	filename.split('/').forEach((part) => testfile.append(part));
-	return Zotero.Attachments.importFromFile({file: testfile});
+function importFileAttachment(filename, options = {}) {
+	let file = getTestDataDirectory();
+	filename.split('/').forEach((part) => file.append(part));
+	let importOptions = {
+		file
+	};
+	Object.assign(importOptions, options);
+	return Zotero.Attachments.importFromFile(importOptions);
 }
 
 

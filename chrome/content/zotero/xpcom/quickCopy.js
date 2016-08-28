@@ -23,14 +23,43 @@
     ***** END LICENSE BLOCK *****
 */
 
+"use strict";
 
 Zotero.QuickCopy = new function() {
+	var _initTimeoutID
+	var _initPromise;
+	var _initialized = false;
 	var _siteSettings;
 	var _formattedNames;
 	
 	this.init = Zotero.Promise.coroutine(function* () {
 		yield this.loadSiteSettings();
+		
+		// Load code for selected export translator ahead of time
+		// (in the background, because it requires translator initialization)
+		_initTimeoutID = setTimeout(() => {
+			_initTimeoutID = null;
+			_initPromise = _loadOutputFormat().then(() => _initPromise = null);
+		}, 5000);
+		
+		if (!_initialized) {
+			Zotero.Prefs.registerObserver("export.quickCopy.setting", () => _loadOutputFormat());
+			_initialized = true;
+		}
 	});
+	
+	
+	this.uninit = function () {
+		// Cancel load if not yet done
+		if (_initTimeoutID) {
+			clearTimeout(_initTimeoutID);
+			_initTimeoutID = null
+		}
+		// Cancel load if in progress
+		if (_initPromise) {
+			_initPromise.cancel();
+		}
+	};
 	
 	
 	this.loadSiteSettings = Zotero.Promise.coroutine(function* () {
@@ -403,6 +432,22 @@ Zotero.QuickCopy = new function() {
 		
 		throw ("Invalid mode '" + format.mode + "' in Zotero.QuickCopy.getContentFromItems()");
 	};
+	
+	
+	/**
+	 * If an export translator is the selected output format, load its code (which must be done
+	 * asynchronously) ahead of time, since drag-and-drop requires synchronous operation
+	 */
+	var _loadOutputFormat = Zotero.Promise.coroutine(function* () {
+		var format = Zotero.Prefs.get("export.quickCopy.setting");
+		format = Zotero.QuickCopy.unserializeSetting(format);
+		if (format.mode == 'export') {
+			yield Zotero.Translators.init();
+			let translator = Zotero.Translators.get(format.id);
+			translator.cacheCode = true;
+			yield translator.getCode();
+		}
+	});
 	
 	
 	var _loadFormattedNames = Zotero.Promise.coroutine(function* () {

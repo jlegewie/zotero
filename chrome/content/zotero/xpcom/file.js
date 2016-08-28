@@ -733,6 +733,12 @@ Zotero.File = new function(){
 		try {
 			iterator = new OS.File.DirectoryIterator(path);
 			yield iterator.forEach(Zotero.Promise.coroutine(function* (entry) {
+				// entry.isDir can be false for some reason on Travis, causing spurious test failures
+				if (Zotero.automatedTest && !entry.isDir && (yield OS.File.stat(entry.path)).isDir) {
+					Zotero.debug("Overriding isDir for " + entry.path);
+					entry.isDir = true;
+				}
+				
 				if (entry.isSymLink) {
 					Zotero.debug("Skipping symlink " + entry.name);
 					return;
@@ -746,6 +752,7 @@ Zotero.File = new function(){
 					return;
 				}
 				
+				Zotero.debug("Adding ZIP entry " + entry.path);
 				zipWriter.addEntryFile(
 					// Add relative path
 					entry.path.substr(rootPath.length + 1),

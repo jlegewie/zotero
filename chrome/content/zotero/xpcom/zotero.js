@@ -103,6 +103,8 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	this.unlockDeferred;
 	this.unlockPromise;
 	
+	this.hiDPISuffix = "";
+	
 	var _startupErrorHandler;
 	var _zoteroDirectory = false;
 	var _localizedStringBundle;
@@ -178,7 +180,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		
 		if (options) {
 			if (options.openPane) this.openPane = true;
-			if (options.noUserInput) this.noUserInput = true;
+			if (options.automatedTest) this.automatedTest = true;
 			if (options.skipBundledFiles) this.skipBundledFiles = true;
 		}
 		
@@ -479,27 +481,40 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	var _initFull = Zotero.Promise.coroutine(function* () {
 		Zotero.VersionHeader.init();
 		
-		// Check for DB restore
+		// Check for data reset/restore
 		var dataDir = Zotero.getZoteroDirectory();
-		var restoreFile = dataDir.clone();
-		restoreFile.append('restore-from-server');
-		if (restoreFile.exists()) {
+		var restoreFile = OS.Path.join(dataDir.path, 'restore-from-server');
+		var resetDataDirFile = OS.Path.join(dataDir.path, 'reset-data-directory');
+		
+		var result = yield Zotero.Promise.all([OS.File.exists(restoreFile), OS.File.exists(resetDataDirFile)]);
+		if (result.some(r => r)) {
+			[Zotero.restoreFromServer, Zotero.resetDataDir] = result;
 			try {
 				// TODO: better error handling
 				
 				// TODO: prompt for location
 				// TODO: Back up database
 				
-				restoreFile.remove(false);
 				
-				var dbfile = Zotero.getZoteroDatabase();
-				dbfile.remove(false);
+				var dbfile = Zotero.getZoteroDatabase().path;
+				yield OS.File.remove(dbfile, {ignoreAbsent: true});
+				
+				if (Zotero.restoreFromServer) {
+					yield OS.File.remove(restoreFile);
+					Zotero.restoreFromServer = true;
+				} else if (Zotero.resetDataDir) {
+					Zotero.initAutoSync = true;
+					var storageDir = OS.Path.join(dataDir.path, 'storage');
+					yield Zotero.Promise.all([
+						OS.File.removeDir(storageDir, {ignoreAbsent: true}), 
+						OS.File.remove(resetDataDirFile)
+					]);
+				}
 				
 				// Recreate database with no quick start guide
 				Zotero.Schema.skipDefaultData = true;
 				yield Zotero.Schema.updateSchema();
 				
-				Zotero.restoreFromServer = true;
 			}
 			catch (e) {
 				// Restore from backup?
@@ -628,13 +643,13 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 				yield Zotero.Promise.each(
 					Zotero.Libraries.getAll(),
 					library => Zotero.Promise.coroutine(function* () {
-						yield Zotero.SyncedSettings.loadAll(library.libraryID);
-						yield Zotero.Collections.loadAll(library.libraryID);
-						yield Zotero.Searches.loadAll(library.libraryID);
+						if (library.libraryType != 'feed') {
+							yield Zotero.SyncedSettings.loadAll(library.libraryID);
+							yield Zotero.Collections.loadAll(library.libraryID);
+							yield Zotero.Searches.loadAll(library.libraryID);
+						}
 					})()
 				);
-				
-				yield Zotero.QuickCopy.init();
 			}
 			catch (e) {
 				Zotero.logError(e);
@@ -735,6 +750,10 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 			};
 			
 			Zotero.Items.startEmptyTrashTimer();
+			
+			yield Zotero.QuickCopy.init();
+			Zotero.addShutdownListener(() => Zotero.QuickCopy.uninit());
+			
 			Zotero.Feeds.init();
 			Zotero.addShutdownListener(() => Zotero.Feeds.uninit());
 			
@@ -1099,7 +1118,16 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 				var fp = Components.classes["@mozilla.org/filepicker;1"]
 							.createInstance(nsIFilePicker);
 				fp.init(win, Zotero.getString('dataDir.selectDir'), nsIFilePicker.modeGetFolder);
-				fp.displayDirectory = Zotero.getZoteroDirectory();
+				try {
+					fp.displayDirectory = Zotero.getZoteroDirectory();
+				} catch (e) {
+					if(e.name == "ZOTERO_DIR_MAY_EXIST") {
+						fp.displayDirectory = e.dir;
+					}
+					else {
+						throw e;
+					}
+				}
 				fp.appendFilters(nsIFilePicker.filterAll);
 				if (fp.show() == nsIFilePicker.returnOK) {
 					var file = fp.file;
@@ -1188,6 +1216,42 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		
 		return useProfileDir ? true : file;
 	}
+	
+	
+	this.forceNewDataDirectory = function(win) {
+		if (!win) {
+			win = Services.wm.getMostRecentWindow('navigator:browser');
+		}
+		var ps = Services.prompt;
+		
+		var nsIFilePicker = Components.interfaces.nsIFilePicker;
+		while (true) {
+			var fp = Components.classes["@mozilla.org/filepicker;1"]
+						.createInstance(nsIFilePicker);
+			fp.init(win, Zotero.getString('dataDir.selectNewDir', Zotero.clientName), nsIFilePicker.modeGetFolder);
+			fp.displayDirectory = Zotero.getZoteroDirectory();
+			fp.appendFilters(nsIFilePicker.filterAll);
+			if (fp.show() == nsIFilePicker.returnOK) {
+				var file = fp.file;
+				
+				if (file.directoryEntries.hasMoreElements()) {
+					ps.alert(null,
+						Zotero.getString('dataDir.mustSelectEmpty.title'),
+						Zotero.getString('dataDir.mustSelectEmpty.text')
+					);
+					continue;
+				}
+				
+				// Set new data directory
+				Zotero.Prefs.set('dataDir', file.persistentDescriptor);
+				Zotero.Prefs.set('lastDataDir', file.path);
+				Zotero.Prefs.set('useDataDir', true);
+				return file;
+			} else {
+				return false;
+			}
+		}
+	};
 
 
 	this.warnOnUnsafeDataDir = true;
@@ -1346,19 +1410,11 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	/**
 	 * Display an alert in a given window
 	 *
-	 * This is just a wrapper around nsIPromptService.alert() that takes the Zotero.noUserInput
-	 * flag into consideration
-	 *
 	 * @param {Window}
 	 * @param {String} title
 	 * @param {String} msg
 	 */
 	this.alert = function (window, title, msg) {
-		if (this.noUserInput) {
-			Zotero.debug("Not displaying alert: " + title + ": " + msg);
-			return;
-		}
-		
 		var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
 			.getService(Components.interfaces.nsIPromptService);
 		ps.alert(window, title, msg);

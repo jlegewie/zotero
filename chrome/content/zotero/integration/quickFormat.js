@@ -418,7 +418,7 @@ var Zotero_QuickFormat = new function () {
 			// Search results might be in an unloaded library, so get items asynchronously and load
 			// necessary data
 			var items = yield Zotero.Items.getAsync(searchResultIDs);
-			yield Zotero.Items.loadDataTypes(items, ['itemData', 'creators']);
+			yield Zotero.Items.loadDataTypes(items);
 			
 			searchString = searchString.toLowerCase();
 			var collation = Zotero.getLocaleCollation();
@@ -1056,6 +1056,12 @@ var Zotero_QuickFormat = new function () {
 	 * Handle return or escape
 	 */
 	function _onQuickSearchKeyPress(event) {
+		// Prevent hang if another key is pressed after Enter
+		// https://forums.zotero.org/discussion/59157/
+		if (accepted) {
+			event.preventDefault();
+			return;
+		}
 		if(qfGuidance) qfGuidance.hide();
 		
 		var keyCode = event.keyCode;

@@ -16,13 +16,17 @@ function makePath {
 
 if [ -z "$FX_EXECUTABLE" ]; then
 	if [ "`uname`" == "Darwin" ]; then
-		FX_EXECUTABLE="/Applications/Firefox.app/Contents/MacOS/firefox"
+		FX_EXECUTABLE="/Applications/Firefox Unbranded.app/Contents/MacOS/firefox"
 	else
 		FX_EXECUTABLE="firefox"
 	fi
 fi
 
-FX_ARGS=""
+if [ -z "$DISPLAY" ]; then
+	FX_ARGS=""
+else
+	FX_ARGS="--class=ZTestFirefox"
+fi
 
 function usage {
 	cat >&2 <<DONE
@@ -132,7 +136,7 @@ fi
 
 
 if [ "$TRAVIS" = true ]; then
-	FX_ARGS="$FX_ARGS -ZoteroNoUserInput -ZoteroTestTimeout 10000"
+	FX_ARGS="$FX_ARGS -ZoteroAutomatedTest -ZoteroTestTimeout 10000"
 fi
 
 # Clean up on exit

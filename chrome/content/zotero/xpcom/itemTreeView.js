@@ -184,7 +184,7 @@ Zotero.ItemTreeView.prototype.setTree = Zotero.Promise.coroutine(function* (tree
 				}
 				
 				// We have to disable key navigation on the tree in order to
-				// keep it from acting on the 1-6 keys used for colored tags.
+				// keep it from acting on the 1-9 keys used for colored tags.
 				// To allow navigation with other keys, we temporarily enable
 				// key navigation and recreate the keyboard event. Since
 				// that will trigger this listener again, we set a flag to
@@ -658,7 +658,7 @@ Zotero.ItemTreeView.prototype.notify = Zotero.Promise.coroutine(function* (actio
 			sort = true;
 		}
 		
-		if (collectionTreeRow.isFeed()) {
+		else if (collectionTreeRow.isFeed()) {
 			this._ownerDocument.defaultView.ZoteroItemPane.setToggleReadLabel();
 		}
 		
@@ -1031,6 +1031,10 @@ Zotero.ItemTreeView.prototype.getCellText = function (row, column)
 		case 'zotero-items-column-dateAdded':
 		case 'zotero-items-column-dateModified':
 		case 'zotero-items-column-accessDate':
+		case 'zotero-items-column-date':
+			if (column.id == 'zotero-items-column-date' && !this.collectionTreeRow.isFeed()) {
+				break;
+			}
 			if (val) {
 				var order = Zotero.Date.getLocaleDateOrder();
 				if (order == 'mdy') {
@@ -1039,7 +1043,7 @@ Zotero.ItemTreeView.prototype.getCellText = function (row, column)
 				}
 				else if (order == 'dmy') {
 					order = 'dmy';
-					var join = '.';
+					var join = '/';
 				}
 				else if (order == 'ymd') {
 					order = 'YMD';
@@ -2302,6 +2306,15 @@ Zotero.ItemTreeView.prototype.onColumnPickerShowing = function (event) {
 				moreItems.push(elem);
 			}
 		}
+
+		// Disable certain fields for feeds
+		let labels = Array.from(treecols.getElementsByAttribute('disabled-in', '*'))
+			.filter(e => e.getAttribute('disabled-in').split(' ').indexOf(this.collectionTreeRow.type) != -1)
+			.map(e => e.getAttribute('label'));
+		for (let i = 0; i < menupopup.childNodes.length; i++) {
+			let elem = menupopup.childNodes[i];
+			elem.setAttribute('disabled', labels.indexOf(elem.getAttribute('label')) != -1);
+		}
 		
 		// Sort fields and move to submenu
 		var collation = Zotero.getLocaleCollation();
@@ -2314,16 +2327,6 @@ Zotero.ItemTreeView.prototype.onColumnPickerShowing = function (event) {
 		
 		moreMenu.appendChild(moreMenuPopup);
 		menupopup.insertBefore(moreMenu, lastChild);
-
-		// Disable certain entries for feeds
-		let elems = Array.from(treecols.getElementsByAttribute('hidden-in', '*'))
-		let labels = Array.from(elems)
-			.filter(e => e.getAttribute('hidden-in').split(' ').indexOf(this.collectionTreeRow.type) != -1)
-			.map(e => e.getAttribute('label'));
-		for (let i = 0; i < menupopup.childNodes.length; i++) {
-			let elem = menupopup.childNodes[i];
-			elem.setAttribute('disabled', labels.indexOf(elem.getAttribute('label')) != -1);
-		}
 	}
 	catch (e) {
 		Components.utils.reportError(e);
@@ -2528,8 +2531,6 @@ Zotero.ItemTreeView.prototype.onDragStart = function (event) {
 	}
 	
 	// Get Quick Copy format for current URL
-// TODO: Fix this
-/** Currently broken
 	var url = this._ownerDocument.defaultView.content && this._ownerDocument.defaultView.content.location ?
 				this._ownerDocument.defaultView.content.location.href : null;
 	var format = Zotero.QuickCopy.getFormatFromURL(url);
@@ -2568,7 +2569,6 @@ Zotero.ItemTreeView.prototype.onDragStart = function (event) {
 		Zotero.debug(e);
 		Components.utils.reportError(e + " with '" + format.id + "'");
 	}
-*/
 };
 
 

@@ -130,11 +130,10 @@ Zotero.LibraryTreeView.prototype = {
 	 * Restore a scroll position returned from _saveScrollPosition()
 	 */
 	_rememberScrollPosition: function (scrollPosition) {
-		if (!scrollPosition) {
+		if (!scrollPosition || !scrollPosition.id) {
 			return;
 		}
 		var row = this.getRowIndexByID(scrollPosition.id);
-		Zotero.debug(scrollPosition.id);
 		if (row === false) {
 			return;
 		}

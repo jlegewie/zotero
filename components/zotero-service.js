@@ -319,9 +319,6 @@ function makeZoteroContext(isConnector) {
 		subscriptLoader.loadSubScript("chrome://zotero/content/xpcom/standalone.js", zContext);
 	}
 	
-	// load nsTransferable (query: do we still use this?)
-	subscriptLoader.loadSubScript("chrome://global/content/nsTransferable.js", zContext);
-	
 	// add connector-related properties
 	zContext.Zotero.isConnector = isConnector;
 	zContext.Zotero.instanceID = instanceID;
@@ -489,8 +486,8 @@ ZoteroCommandLineHandler.prototype = {
 			}
 		}
 		
-		if (cmdLine.handleFlag("ZoteroNoUserInput", false)) {
-			zInitOptions.noUserInput = true;
+		if (cmdLine.handleFlag("ZoteroAutomatedTest", false)) {
+			zInitOptions.automatedTest = true;
 		}
 		if (cmdLine.handleFlag("ZoteroSkipBundledFiles", false)) {
 			zInitOptions.skipBundledFiles = true;

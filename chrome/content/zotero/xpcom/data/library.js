@@ -227,11 +227,6 @@ Zotero.Library.prototype._get = function(prop) {
 		throw new Error('Unknown property "' + prop + '"');
 	}
 	
-	if (this._changed[prop]) {
-		// Catch attempts to retrieve unsaved property?
-		Zotero.debug('Warning: Attempting to retrieve unsaved ' + this._objectType + ' property "' + prop + '"', 2, true);
-	}
-	
 	return this[prop];
 }
 
@@ -525,7 +520,7 @@ Zotero.Library.prototype._saveData = Zotero.Promise.coroutine(function* (env) {
 		
 		// Since these are Zotero.Library properties, the 'modify' for the inheriting object may not
 		// get triggered, so call it here too
-		if (this.libraryType != 'user') {
+		if (!env.options.skipNotifier && this.libraryType != 'user') {
 			Zotero.Notifier.queue('modify', this.libraryType, this.libraryTypeID);
 		}
 	} else {

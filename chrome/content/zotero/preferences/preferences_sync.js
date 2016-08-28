@@ -25,6 +25,7 @@
 
 "use strict";
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/osfile.jsm");
 
 Zotero_Preferences.Sync = {
 	init: Zotero.Promise.coroutine(function* () {
@@ -100,6 +101,7 @@ Zotero_Preferences.Sync = {
 
 		if (event.keyCode == 13) {
 			Zotero_Preferences.Sync.linkAccount(event);
+			event.preventDefault();
 		}
 	},
 	
@@ -146,7 +148,6 @@ Zotero_Preferences.Sync = {
 			Zotero.Sync.Runner.deleteAPIKey();
 			return;
 		}
-
 		this.displayFields(json.username);
 	}),
 
@@ -165,17 +166,165 @@ Zotero_Preferences.Sync = {
 
 	unlinkAccount: Zotero.Promise.coroutine(function* (showAlert=true) {
 		if (showAlert) {
-			if (!Services.prompt.confirm(
+			var check = {value: false};
+			var ps = Services.prompt;
+			var buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING) +
+				(ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_CANCEL);
+			var index = ps.confirmEx(
 				null,
 				Zotero.getString('general.warning'),
-				Zotero.getString('sync.unlinkWarning', Zotero.clientName)
-			)) {
+				Zotero.getString('account.unlinkWarning', Zotero.clientName),
+				buttonFlags,
+				Zotero.getString('account.unlinkWarning.button'), null, null,
+				Zotero.getString('account.unlinkWarning.removeData', Zotero.clientName),
+				check
+			);
+			if (index == 0) {
+				if (check.value) {
+					var resetDataDirFile = OS.Path.join(Zotero.getZoteroDirectory().path, 'reset-data-directory');
+					yield Zotero.File.putContentsAsync(resetDataDirFile, '');
+
+					yield Zotero.Sync.Runner.deleteAPIKey();
+					Zotero.Prefs.clear('sync.server.username');
+					return Zotero.Utilities.Internal.quitZotero(true);
+				}
+			} else {
 				return;
 			}
 		}
 
 		this.displayFields();
+		Zotero.Prefs.clear('sync.librariesToSync');
 		yield Zotero.Sync.Runner.deleteAPIKey();
+	}),
+	
+	
+	showLibrariesToSyncDialog: function() {
+		var io = {};
+		window.openDialog('chrome://zotero/content/preferences/librariesToSync.xul',
+			"zotero-preferences-librariesToSyncDialog", "chrome,modal,centerscreen", io);
+	},
+	
+	
+	dblClickLibraryToSync: function (event) {
+		var tree = document.getElementById("libraries-to-sync-tree");
+		var row = {}, col = {}, child = {};
+		tree.treeBoxObject.getCellAt(event.clientX, event.clientY, row, col, child);
+		
+		if (col.value.element.id == 'libraries-to-sync-checked') {
+			return;
+		}
+		// if dblclicked anywhere but the checkbox update pref
+		return this.toggleLibraryToSync(row.value);
+	},
+
+
+	clickLibraryToSync: function (event) {
+		var tree = document.getElementById("libraries-to-sync-tree");
+		var row = {}, col = {}, child = {};
+		tree.treeBoxObject.getCellAt(event.clientX, event.clientY, row, col, child);
+		
+		if (col.value.element.id != 'libraries-to-sync-checked') {
+			return;
+		}
+		// if clicked on checkbox update pref
+		return this.toggleLibraryToSync(row.value);
+	},
+	
+	
+	toggleLibraryToSync: function (index) {
+		var treechildren = document.getElementById('libraries-to-sync-rows');
+		if (index >= treechildren.childNodes.length) {
+			return;
+		}
+		var row = treechildren.childNodes[index];
+		var val = row.firstChild.childNodes[1].getAttribute('value');
+		if (!val) {
+			return
+		}
+		
+		var librariesToSkip = JSON.parse(Zotero.Prefs.get('sync.librariesToSkip') || '[]');
+		var indexOfId = librariesToSkip.indexOf(val);
+		if (indexOfId == -1) {
+			librariesToSkip.push(val);
+		} else {
+			librariesToSkip.splice(indexOfId, 1);
+		}
+		Zotero.Prefs.set('sync.librariesToSkip', JSON.stringify(librariesToSkip));
+		 
+		var cell = row.firstChild.firstChild;
+		cell.setAttribute('value', indexOfId != -1);
+	},
+	
+	
+	initLibrariesToSync: Zotero.Promise.coroutine(function* () {
+		var tree = document.getElementById("libraries-to-sync-tree");
+		var treechildren = document.getElementById('libraries-to-sync-rows');
+		while (treechildren.hasChildNodes()) {
+			treechildren.removeChild(treechildren.firstChild);
+		}
+		
+		function addRow(libraryName, id, checked=false, editable=true) {
+			var treeitem = document.createElement('treeitem');
+			var treerow = document.createElement('treerow');
+			var checkboxCell = document.createElement('treecell');
+			var nameCell = document.createElement('treecell');
+			
+			nameCell.setAttribute('label', libraryName);
+			nameCell.setAttribute('value', id);
+			nameCell.setAttribute('editable', false);
+			checkboxCell.setAttribute('value', checked);
+			checkboxCell.setAttribute('editable', editable);
+			
+			treerow.appendChild(checkboxCell);
+			treerow.appendChild(nameCell);
+			treeitem.appendChild(treerow);
+			treechildren.appendChild(treeitem);
+		}
+		
+		// Add loading row while we're loading a group list
+		var loadingLabel = Zotero.getString("zotero.preferences.sync.librariesToSync.loadingLibraries");
+		addRow(loadingLabel, "loading", false, false);
+
+		var apiKey = Zotero.Sync.Data.Local.getAPIKey();
+		var client = Zotero.Sync.Runner.getAPIClient({apiKey});
+		var groups = [];
+		try {
+			// Load up remote groups
+			var keyInfo = yield Zotero.Sync.Runner.checkAccess(client, {timeout: 5000});
+			groups = yield client.getGroups(keyInfo.userID);
+		}
+		catch (e) {
+			// Connection problems
+			if ((e instanceof Zotero.HTTP.UnexpectedStatusException)
+					|| (e instanceof Zotero.HTTP.TimeoutException)
+					|| (e instanceof Zotero.HTTP.BrowserOfflineException)) {
+				Zotero.alert(
+					window,
+					Zotero.getString('general.error'),
+					Zotero.getString('sync.error.checkConnection', Zotero.clientName)
+				);
+			}
+			else {
+				throw e;
+			}
+			document.getElementsByTagName('dialog')[0].acceptDialog();
+		}
+
+		// Remove the loading row
+		treechildren.removeChild(treechildren.firstChild);
+
+		var librariesToSkip = JSON.parse(Zotero.Prefs.get('sync.librariesToSkip') || '[]');
+		// Add default rows
+		addRow(Zotero.getString("pane.collections.libraryAndFeeds"), "L" + Zotero.Libraries.userLibraryID, 
+			librariesToSkip.indexOf("L" + Zotero.Libraries.userLibraryID) == -1);
+		addRow(Zotero.getString("pane.collections.publications"), "L" + Zotero.Libraries.publicationsLibraryID, 
+			librariesToSkip.indexOf("L" + Zotero.Libraries.publicationsLibraryID) == -1);
+		
+		// Add group rows
+		for (let group of groups) {
+			addRow(group.data.name, "G" + group.id, librariesToSkip.indexOf("G" + group.id) == -1);
+		}
 	}),
 
 

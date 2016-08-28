@@ -59,8 +59,7 @@ Zotero.CollectionTreeView = function()
 		25
 	);
 	this._containerState = {};
-	this._duplicateLibraries = [];
-	this._unfiledLibraries = [];
+	this._virtualCollectionLibraries = {};
 	this._trashNotEmpty = {};
 }
 
@@ -163,26 +162,12 @@ Zotero.CollectionTreeView.prototype.refresh = Zotero.Promise.coroutine(function*
 	
 	var userLibraryID = Zotero.Libraries.userLibraryID;
 	
-	var readPref = function (pref) {
-		let ids = Zotero.Prefs.get(pref);
-		if (ids === "") {
-			this["_" + pref] = [];
-		}
-		else {
-			if (ids === undefined || typeof ids != 'string') {
-				ids = "" + userLibraryID;
-				Zotero.Prefs.set(pref, "" + userLibraryID);
-			}
-			this["_" + pref] = ids.split(',')
-				// Convert old id and convert to int
-				.map(id => id === "0" ? userLibraryID : parseInt(id));
-		}
-	}.bind(this);
-	
 	if (this.hideSources.indexOf('duplicates') == -1) {
-		readPref('duplicateLibraries');
+		this._virtualCollectionLibraries.duplicates =
+			Zotero.Utilities.Internal.getVirtualCollectionState('duplicates')
 	}
-	readPref('unfiledLibraries');
+	this._virtualCollectionLibraries.unfiled =
+			Zotero.Utilities.Internal.getVirtualCollectionState('unfiled')
 	
 	var oldCount = this.rowCount || 0;
 	var newRows = [];
@@ -204,7 +189,8 @@ Zotero.CollectionTreeView.prototype.refresh = Zotero.Promise.coroutine(function*
 	this._addRowToArray(
 		newRows,
 		new Zotero.CollectionTreeRow('publications', {
-			libraryID: Zotero.Libraries.publicationsLibraryID
+			libraryID: Zotero.Libraries.publicationsLibraryID,
+			treeViewID: "L" + Zotero.Libraries.publicationsLibraryID
 		}),
 		added++
 	);
@@ -213,6 +199,13 @@ Zotero.CollectionTreeView.prototype.refresh = Zotero.Promise.coroutine(function*
 	// Add feeds
 	if (this.hideSources.indexOf('feeds') == -1) {
 		var feeds = Zotero.Feeds.getAll();
+		
+		// Alphabetize
+		var collation = Zotero.getLocaleCollation();
+		feeds.sort(function(a, b) {
+			return collation.compareString(1, a.name, b.name);
+		});
+		
 		if (feeds.length) {
 			this._addRowToArray(
 				newRows,
@@ -261,6 +254,7 @@ Zotero.CollectionTreeView.prototype.refresh = Zotero.Promise.coroutine(function*
 				new Zotero.CollectionTreeRow('group', group),
 				added++
 			);
+			added += yield this._expandRow(newRows, added - 1);
 		}
 	}
 	
@@ -370,7 +364,8 @@ Zotero.CollectionTreeView.prototype.notify = Zotero.Promise.coroutine(function* 
 	}
 	
 	if (action == 'delete') {
-		var selectedIndex = this.selection.count ? this.selection.currentIndex : 0;
+		let selectedIndex = this.selection.count ? this.selection.currentIndex : 0;
+		let refreshFeeds = false;
 		
 		// Since a delete involves shifting of rows, we have to do it in reverse order
 		let rows = [];
@@ -398,6 +393,10 @@ Zotero.CollectionTreeView.prototype.notify = Zotero.Promise.coroutine(function* 
 						row++;
 					}
 					while (row < this.rowCount && this.getLevel(row) > level);
+					
+					if (type == 'feed') {
+						refreshFeeds = true;
+					}
 					break;
 			}
 		}
@@ -410,30 +409,22 @@ Zotero.CollectionTreeView.prototype.notify = Zotero.Promise.coroutine(function* 
 				this._removeRow(row);
 			}
 			
+			// If a feed was removed and there are no more, remove Feeds header
+			if (refreshFeeds && !Zotero.Feeds.haveFeeds()) {
+				for (let i = 0; i < this._rows.length; i++) {
+					let row = this._rows[i];
+					if (row.ref.id == 'feed-libraries-header') {
+						this._removeRow(i);
+						this._removeRow(i - 1);
+						break;
+					}
+				}
+			}
+			
 			this._refreshRowMap();
 		}
 		
-		if (!this.selection.count) {
-			// If last row was selected, stay on the last row
-			if (selectedIndex >= this.rowCount) {
-				selectedIndex = this.rowCount - 1;
-			};
-			this.selection.select(selectedIndex)
-		}
-		
-		// Make sure the selection doesn't land on a separator (e.g. deleting last feed)
-		let index = this.selection.currentIndex;
-		while (index >= 0 && !this.isSelectable(index)) {
-			// move up, since we got shifted down
-			index--;
-		}
-		
-		if (index >= 0) {
-			this.selection.select(index);
-		} else {
-			this.selection.clearSelection();
-		}
-		
+		this.selectAfterRowRemoval(selectedIndex);
 	}
 	else if (action == 'modify') {
 		let row;
@@ -810,8 +801,11 @@ Zotero.CollectionTreeView.prototype.isContainerEmpty = function(row)
 		
 		return !treeRow.ref.hasCollections()
 				&& !treeRow.ref.hasSearches()
-				&& this._duplicateLibraries.indexOf(libraryID) == -1
-				&& this._unfiledLibraries.indexOf(libraryID) == -1
+				// Duplicate Items not shown
+				&& (this.hideSources.indexOf('duplicates') != -1
+					|| this._virtualCollectionLibraries.duplicates[libraryID] === false)
+				// Unfiled Items not shown
+				&& this._virtualCollectionLibraries.unfiled[libraryID] === false
 				&& this.hideSources.indexOf('trash') != -1;
 	}
 	if (treeRow.isCollection()) {
@@ -861,7 +855,7 @@ Zotero.CollectionTreeView.prototype.toggleOpenState = Zotero.Promise.coroutine(f
 	this._rows[row].isOpen = true;
 	this._treebox.invalidateRow(row);
 	this._refreshRowMap();
-	this._startRememberOpenStatesTimer();
+	this._startSaveOpenStatesTimer();
 });
 
 
@@ -881,7 +875,7 @@ Zotero.CollectionTreeView.prototype._closeContainer = function (row) {
 	this._rows[row].isOpen = false;
 	this._treebox.invalidateRow(row);
 	this._refreshRowMap();
-	this._startRememberOpenStatesTimer();
+	this._startSaveOpenStatesTimer();
 }
 
 
@@ -889,13 +883,13 @@ Zotero.CollectionTreeView.prototype._closeContainer = function (row) {
  * After a short delay, persist the open states of the tree, or if already queued, cancel and requeue.
  * This avoids repeated saving while opening or closing multiple rows.
  */
-Zotero.CollectionTreeView.prototype._startRememberOpenStatesTimer = function () {
-	if (this._rememberOpenStatesTimeoutID) {
-		clearTimeout(this._rememberOpenStatesTimeoutID);
+Zotero.CollectionTreeView.prototype._startSaveOpenStatesTimer = function () {
+	if (this._saveOpenStatesTimeoutID) {
+		clearTimeout(this._saveOpenStatesTimeoutID);
 	}
-	this._rememberOpenStatesTimeoutID = setTimeout(() => {
-		this._rememberOpenStates();
-		this._rememberOpenStatesTimeoutID = null;
+	this._saveOpenStatesTimeoutID = setTimeout(() => {
+		this._saveOpenStates();
+		this._saveOpenStatesTimeoutID = null;
 	}, 250)
 };
 
@@ -993,10 +987,10 @@ Zotero.CollectionTreeView.prototype.collapseLibrary = function (libraryID) {
 	this.selection.select(row);
 	
 	// We have to manually delete closed rows from the container state object, because otherwise
-	// _rememberOpenStates() wouldn't see any of the rows under the library (since the library is now
+	// _saveOpenStates() wouldn't see any of the rows under the library (since the library is now
 	// collapsed) and they'd remain as open in the persisted object.
 	closed.forEach(id => { delete this._containerState[id]; });
-	this._rememberOpenStates();
+	this._saveOpenStates();
 	
 	return true;
 };
@@ -1043,19 +1037,24 @@ Zotero.CollectionTreeView.prototype.expandToCollection = Zotero.Promise.coroutin
 ////////////////////////////////////////////////////////////////////////////////
 Zotero.CollectionTreeView.prototype.selectByID = Zotero.Promise.coroutine(function* (id) {
 	var type = id[0];
-	id = ('' + id).substr(1);
+	id = parseInt(('' + id).substr(1));
 	
 	switch (type) {
 	case 'L':
 		return yield this.selectLibrary(id);
 	
 	case 'C':
-		var found = yield this.expandToCollection(id);
+		yield this.expandToCollection(id);
 		break;
-		
+	
 	case 'S':
 		var search = yield Zotero.Searches.getAsync(id);
-		var found = yield this.expandLibrary(search.libraryID);
+		yield this.expandLibrary(search.libraryID);
+		break;
+	
+	case 'D':
+	case 'U':
+		yield this.expandLibrary(id);
 		break;
 	
 	case 'T':
@@ -1185,27 +1184,32 @@ Zotero.CollectionTreeView.prototype.deleteSelection = Zotero.Promise.coroutine(f
 			yield treeRow.ref.eraseTx({
 				deleteItems: true
 			});
-		}
-		if (treeRow.isCollection() || treeRow.isFeed()) {
-			yield treeRow.ref.erase(deleteItems);
+			if (treeRow.isFeed()) {
+				refreshFeeds = true;
+			}
 		}
 		else if (treeRow.isSearch()) {
 			yield Zotero.Searches.erase(treeRow.ref.id);
 		}
 	}
 	//this._treebox.endUpdateBatch();
-	
-	if (end.value < this.rowCount) {
-		var row = this.getRow(end.value);
-		if (row.isSeparator()) {
-			return;
-		}
-		this.selection.select(end.value);
-	}
-	else {
-		this.selection.select(this.rowCount-1);
-	}
 });
+
+
+Zotero.CollectionTreeView.prototype.selectAfterRowRemoval = function (row) {
+	// If last row was selected, stay on the last row
+	if (row >= this.rowCount) {
+		row = this.rowCount - 1;
+	};
+	
+	// Make sure the selection doesn't land on a separator (e.g. deleting last feed)
+	while (row >= 0 && !this.isSelectable(row)) {
+		// move up, since we got shifted down
+		row--;
+	}
+	
+	this.selection.select(row);
+};
 
 
 /**
@@ -1223,7 +1227,7 @@ Zotero.CollectionTreeView.prototype._expandRow = Zotero.Promise.coroutine(functi
 	}
 	
 	if (isLibrary) {
-		var collections = Zotero.Collections.getByLibrary(libraryID, treeRow.ref.id);
+		var collections = Zotero.Collections.getByLibrary(libraryID);
 	}
 	else if (isCollection) {
 		var collections = Zotero.Collections.getByParent(treeRow.ref.id);
@@ -1231,9 +1235,10 @@ Zotero.CollectionTreeView.prototype._expandRow = Zotero.Promise.coroutine(functi
 	
 	if (isLibrary) {
 		var savedSearches = yield Zotero.Searches.getAll(libraryID);
-		var showDuplicates = (this.hideSources.indexOf('duplicates') == -1
-				&& this._duplicateLibraries.indexOf(libraryID) != -1);
-		var showUnfiled = this._unfiledLibraries.indexOf(libraryID) != -1;
+		// Virtual collections default to showing if not explicitly hidden
+		var showDuplicates = this.hideSources.indexOf('duplicates') == -1
+				&& this._virtualCollectionLibraries.duplicates[libraryID] !== false;
+		var showUnfiled = this._virtualCollectionLibraries.unfiled[libraryID] !== false;
 		var showTrash = this.hideSources.indexOf('trash') == -1;
 	}
 	else {
@@ -1378,7 +1383,7 @@ Zotero.CollectionTreeView.prototype._refreshRowMap = function() {
 /**
  * Persist the current open/closed state of rows to a pref
  */
-Zotero.CollectionTreeView.prototype._rememberOpenStates = Zotero.Promise.coroutine(function* () {
+Zotero.CollectionTreeView.prototype._saveOpenStates = Zotero.Promise.coroutine(function* () {
 	var state = this._containerState;
 	
 	// Every so often, remove obsolete rows

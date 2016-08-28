@@ -61,8 +61,8 @@ Zotero.Feed = function(params = {}) {
 	// Return a proxy so that we can disable the object once it's deleted
 	return new Proxy(this, {
 		get: function(obj, prop) {
-			if (obj._disabled && !(prop == 'libraryID' || prop == 'id')) {
-				throw new Error("Feed (" + obj.libraryID + ") has been disabled");
+			if (obj._disabled && !(prop == 'libraryID' || prop == 'id' || prop == 'treeViewID')) {
+				throw new Error("Feed " + obj.libraryID + " has been disabled");
 			}
 			return obj[prop];
 		}
@@ -70,7 +70,6 @@ Zotero.Feed = function(params = {}) {
 	this._feedUnreadCount = null;
 	
 	this._updating = false;
-	this._syncedSettings = null;
 	this._previousURL = null;
 }
 
@@ -281,7 +280,9 @@ Zotero.Feed.prototype._saveData = Zotero.Promise.coroutine(function* (env) {
 		params.push(this.libraryID);
 		yield Zotero.DB.queryAsync(sql, params);
 		
-		Zotero.Notifier.queue('modify', 'feed', this.libraryID, env.options.notifierQueue);
+		if (!env.options.skipNotifier) {
+			Zotero.Notifier.queue('modify', 'feed', this.libraryID, env.options.notifierQueue);
+		}
 	}
 	else {
 		Zotero.debug("Feed data did not change for feed " + this.libraryID, 5);
@@ -301,8 +302,8 @@ Zotero.Feed.prototype._finalizeSave = Zotero.Promise.coroutine(function* (env) {
 	}
 	if (env.isNew || this._previousURL) {
 		Zotero.Feeds.register(this);
-		yield this.storeSyncedSettings();
 	}
+	yield this.storeSyncedSettings();
 	this._previousURL = null;
 	
 });
@@ -335,12 +336,7 @@ Zotero.Feed.prototype.erase = Zotero.Promise.coroutine(function* (options = {}) 
 
 Zotero.Feed.prototype.storeSyncedSettings = Zotero.Promise.coroutine(function* () {
 	let syncedFeeds = Zotero.SyncedSettings.get(Zotero.Libraries.userLibraryID, 'feeds') || {};
-	syncedFeeds[this.url] = {
-		url: this.url,
-		name: this.name,
-		cleanupAfter: this.cleanupAfter,
-		refreshInterval: this.refreshInterval
-	};
+	syncedFeeds[this.url] = [this.name, this.cleanupAfter, this.refreshInterval];
 	return Zotero.SyncedSettings.set(Zotero.Libraries.userLibraryID, 'feeds', syncedFeeds);
 });
 

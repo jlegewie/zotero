@@ -222,6 +222,12 @@ Zotero.DataObjects.prototype.getLoaded = function () {
 }
 
 
+Zotero.DataObjects.prototype.getAllKeys = function (libraryID) {
+	var sql = "SELECT key FROM " + this._ZDO_table + " WHERE libraryID=?";
+	return Zotero.DB.columnQueryAsync(sql, [libraryID]);
+};
+
+
 /**
  * @deprecated - use .libraryKey
  */
@@ -393,10 +399,13 @@ Zotero.DataObjects.prototype.getObjectVersions = Zotero.Promise.coroutine(functi
  * results might include objects in libraries that haven't yet been loaded.
  *
  * @param {Zotero.DataObject[]} objects
- * @param {String[]} dataTypes
+ * @param {String[]} [dataTypes] - Data types to load, defaulting to all types
  * @return {Promise}
  */
 Zotero.DataObjects.prototype.loadDataTypes = Zotero.Promise.coroutine(function* (objects, dataTypes) {
+	if (!dataTypes) {
+		dataTypes = this.ObjectClass.prototype._dataTypes;
+	}
 	for (let dataType of dataTypes) {
 		let typeIDsByLibrary = {};
 		for (let obj of objects) {
@@ -791,7 +800,7 @@ Zotero.DataObjects.prototype.unload = function () {
  * Set the version of objects, efficiently
  *
  * @param {Integer[]} ids - Ids of objects to update
- * @param {Boolean} synced
+ * @param {Boolean} version
  */
 Zotero.DataObjects.prototype.updateVersion = Zotero.Promise.method(function (ids, version) {
 	if (version != parseInt(version)) {

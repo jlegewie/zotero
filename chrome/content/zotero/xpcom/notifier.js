@@ -30,12 +30,19 @@ Zotero.Notifier = new function(){
 	var _types = [
 		'collection', 'search', 'share', 'share-items', 'item', 'file',
 		'collection-item', 'item-tag', 'tag', 'setting', 'group', 'trash', 'publications',
-		'bucket', 'relation', 'feed', 'feedItem'
+		'bucket', 'relation', 'feed', 'feedItem', 'sync'
 	];
 	var _inTransaction;
 	var _queue = {};
-	
-	
+
+
+	/**
+	 * @param {Object} [ref] signature {notify: function(event, type, ids, extraData) {}}
+	 * @param {Array} [types] a list of types of events observer should be triggered on
+	 * @param {String} [id] an id of the observer used in debug output
+	 * @param {Integer} [priority] lower numbers correspond to higher priority of observer execution
+	 * @returns {string}
+	 */
 	this.registerObserver = function (ref, types, id, priority) {
 		if (types){
 			types = Zotero.flattenArguments(types);

@@ -80,7 +80,8 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 	 * @param {Object}    [options]
 	 * @param {Boolean}   [options.background=false]  Whether this is a background request, which
 	 *                                                prevents some alerts from being shown
-	 * @param {Integer[]} [options.libraries]         IDs of libraries to sync
+	 * @param {Integer[]} [options.libraries]         IDs of libraries to sync; skipped libraries must
+	 *     be removed if unwanted
 	 * @param {Function}  [options.onError]           Function to pass errors to instead of
 	 *                                                handling internally (used for testing)
 	 */
@@ -149,7 +150,7 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 				firstInSession: _firstInSession
 			};
 			
-			let librariesToSync = options.libraries = yield this.checkLibraries(
+			var librariesToSync = options.libraries = yield this.checkLibraries(
 				client,
 				options,
 				keyInfo,
@@ -223,6 +224,7 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 			}
 			
 			Zotero.debug("Done syncing");
+			Zotero.Notifier.trigger('finish', 'sync', librariesToSync || []);
 		}
 	});
 	
@@ -254,13 +256,13 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 
 		if (!userID) {
 			let hasItems = yield library.hasItems();
-			if (!hasItems && feeds.length <= 0) {
+			if (!hasItems && feeds.length <= 0 && !Zotero.resetDataDir) {
 				let ps = Services.prompt;
 				let index = ps.confirmEx(
 					null,
 					Zotero.getString('general.warning'),
-					Zotero.getString('sync.warning.emptyLibrary', [keyInfo.username, Zotero.clientName]) + "\n\n"
-						+ Zotero.getString('sync.warning.existingDataElsewhere', Zotero.clientName),
+					Zotero.getString('account.warning.emptyLibrary', [keyInfo.username, Zotero.clientName]) + "\n\n"
+						+ Zotero.getString('account.warning.existingDataElsewhere', Zotero.clientName),
 					(ps.BUTTON_POS_0 * ps.BUTTON_TITLE_IS_STRING) 
 						+ (ps.BUTTON_POS_1 * ps.BUTTON_TITLE_CANCEL)
 						+ (ps.BUTTON_POS_2 * ps.BUTTON_TITLE_IS_STRING),
@@ -292,14 +294,6 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 	this.checkLibraries = Zotero.Promise.coroutine(function* (client, options, keyInfo, libraries = []) {
 		var access = keyInfo.access;
 		
-/*				var libraries = [
-			Zotero.Libraries.userLibraryID,
-			Zotero.Libraries.publicationsLibraryID,
-			// Groups sorted by name
-			...(Zotero.Groups.getAll().map(x => x.libraryID))
-		];
-*/
-		
 		var syncAllLibraries = !libraries || !libraries.length;
 		
 		// TODO: Ability to remove or disable editing of user library?
@@ -307,6 +301,10 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 		if (syncAllLibraries) {
 			if (access.user && access.user.library) {
 				libraries = [Zotero.Libraries.userLibraryID, Zotero.Libraries.publicationsLibraryID];
+				// If syncing all libraries, remove skipped libraries
+				libraries = Zotero.Utilities.arrayDiff(
+					libraries, Zotero.Sync.Data.Local.getSkippedLibraries()
+				);
 			}
 		}
 		else {
@@ -339,7 +337,15 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 			
 			let remoteGroupVersions = yield client.getGroupVersions(keyInfo.userID);
 			let remoteGroupIDs = Object.keys(remoteGroupVersions).map(id => parseInt(id));
-			Zotero.debug(remoteGroupVersions);
+			let skippedGroups = Zotero.Sync.Data.Local.getSkippedGroups();
+			
+			// Remove skipped groups
+			if (syncAllLibraries) {
+				let newGroups = Zotero.Utilities.arrayDiff(remoteGroupIDs, skippedGroups);
+				Zotero.Utilities.arrayDiff(remoteGroupIDs, newGroups)
+					.forEach(id => { delete remoteGroupVersions[id] });
+				remoteGroupIDs = newGroups;
+			}
 			
 			for (let id in remoteGroupVersions) {
 				id = parseInt(id);
@@ -372,13 +378,20 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 			// Get local groups (all if syncing all libraries or just selected ones) that don't
 			// exist remotely
 			// TODO: Use explicit removals?
-			remotelyMissingGroups = Zotero.Utilities.arrayDiff(
-				syncAllLibraries
-					? Zotero.Groups.getAll().map(g => g.id)
-					: libraries.filter(id => Zotero.Libraries.get(id).libraryType == 'group')
-						.map(id => Zotero.Groups.getGroupIDFromLibraryID(id)),
-				remoteGroupIDs
-			).map(id => Zotero.Groups.get(id));
+			let localGroups;
+			if (syncAllLibraries) {
+				localGroups = Zotero.Groups.getAll()
+					.map(g => g.id)
+					// Don't include skipped groups
+					.filter(id => skippedGroups.indexOf(id) == -1);
+			}
+			else {
+				localGroups = libraries
+					.filter(id => Zotero.Libraries.get(id).libraryType == 'group')
+					.map(id => Zotero.Groups.getGroupIDFromLibraryID(id))
+			}
+			remotelyMissingGroups = Zotero.Utilities.arrayDiff(localGroups, remoteGroupIDs)
+				.map(id => Zotero.Groups.get(id));
 		}
 		// No group access
 		else {
@@ -451,12 +464,27 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 		
 		// Update metadata and permissions on missing or outdated groups
 		for (let groupID of groupsToDownload) {
-			let info = yield client.getGroupInfo(groupID);
+			let info = yield client.getGroup(groupID);
 			if (!info) {
 				throw new Error("Group " + groupID + " not found");
 			}
 			let group = Zotero.Groups.get(groupID);
-			if (!group) {
+			if (group) {
+				// Check if the user's permissions for the group have changed, and prompt to reset
+				// data if so
+				let { editable, filesEditable } = Zotero.Groups.getPermissionsFromJSON(
+					info.data, keyInfo.userID
+				);
+				let keepGoing = yield Zotero.Sync.Data.Local.checkLibraryForAccess(
+					null, group.libraryID, editable, filesEditable
+				);
+				// User chose to skip library
+				if (!keepGoing) {
+					Zotero.debug("Skipping sync of group " + group.id);
+					continue;
+				}
+			}
+			else {
 				group = new Zotero.Group;
 				group.id = groupID;
 			}
@@ -579,7 +607,7 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 	 * @return {Integer[]} - Array of libraries that need data syncing again
 	 */
 	var _doFullTextSync = Zotero.Promise.coroutine(function* (libraries, options) {
-		if (!Zotero.Prefs.get("sync.fulltext.enabled")) return;
+		if (!Zotero.Prefs.get("sync.fulltext.enabled")) return [];
 		
 		Zotero.debug("Starting full-text syncing");
 		this.setSyncStatus(Zotero.getString('sync.status.syncingFullText'));
@@ -801,6 +829,7 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 		if (libraryID) {
 			e.libraryID = libraryID;
 		}
+		Zotero.logError(e);
 		_errors.push(this.parseError(e));
 	}
 	

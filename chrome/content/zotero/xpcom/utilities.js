@@ -31,7 +31,7 @@
  * Note that this is the reverse of the text variable map, since all mappings should be one to one
  * and it makes the code cleaner
  */
-const CSL_NAMES_MAPPINGS = {
+var CSL_NAMES_MAPPINGS = {
 	"author":"author",
 	"editor":"editor",
 	"bookAuthor":"container-author",
@@ -47,7 +47,7 @@ const CSL_NAMES_MAPPINGS = {
 /*
  * Mappings for text variables
  */
-const CSL_TEXT_MAPPINGS = {
+var CSL_TEXT_MAPPINGS = {
 	"title":["title"],
 	"container-title":["publicationTitle",  "reporter", "code"], /* reporter and code should move to SQL mapping tables */
 	"collection-title":["seriesTitle", "series"],
@@ -91,7 +91,7 @@ const CSL_TEXT_MAPPINGS = {
 /*
  * Mappings for dates
  */
-const CSL_DATE_MAPPINGS = {
+var CSL_DATE_MAPPINGS = {
 	"issued":"date",
 	"accessed":"accessDate",
 	"submitted":"filingDate"
@@ -101,7 +101,7 @@ const CSL_DATE_MAPPINGS = {
  * Mappings for types
  * Also see itemFromCSLJSON
  */
-const CSL_TYPE_MAPPINGS = {
+var CSL_TYPE_MAPPINGS = {
 	'book':"book",
 	'bookSection':'chapter',
 	'journalArticle':"article-journal",
@@ -1613,9 +1613,11 @@ Zotero.Utilities = {
 	 *     is passed
 	 */
 	"itemToCSLJSON":function(zoteroItem) {
+		// If a Zotero.Item was passed, convert it to the proper format (skipping child items) and
+		// call this function again with that object
 		if (zoteroItem instanceof Zotero.Item) {
 			return this.itemToCSLJSON(
-				Zotero.Utilities.Internal.itemToExportFormat(zoteroItem)
+				Zotero.Utilities.Internal.itemToExportFormat(zoteroItem, false, true)
 			);
 		}
 		

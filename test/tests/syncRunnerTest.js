@@ -166,7 +166,13 @@ describe("Zotero.Sync.Runner", function () {
 	})
 	
 	describe("#checkLibraries()", function () {
+		beforeEach(function* () {
+			Zotero.Prefs.clear('sync.librariesToSkip');
+		});
+		
 		afterEach(function* () {
+			Zotero.Prefs.clear('sync.librariesToSkip');
+			
 			var group = Zotero.Groups.get(responses.groups.ownerGroup.json.id);
 			if (group) {
 				yield group.eraseTx();
@@ -243,6 +249,76 @@ describe("Zotero.Sync.Runner", function () {
 			assert.sameMembers(libraries, [group1.libraryID]);
 		})
 		
+		it("should filter out nonexistent skipped libraries if library list not provided", function* () {
+			var unskippedGroupID = responses.groups.ownerGroup.json.id;
+			var skippedGroupID = responses.groups.memberGroup.json.id;
+			Zotero.Prefs.set('sync.librariesToSkip', `["L4", "G${skippedGroupID}"]`);
+			
+			setResponse('userGroups.groupVersions');
+			setResponse('groups.ownerGroup');
+			setResponse('groups.memberGroup');
+			var libraries = yield runner.checkLibraries(
+				runner.getAPIClient({ apiKey }),
+				false,
+				responses.keyInfo.fullAccess.json
+			);
+			
+			var group = Zotero.Groups.get(unskippedGroupID);
+			assert.lengthOf(libraries, 2);
+			assert.sameMembers(libraries, [userLibraryID, group.libraryID]);
+			
+			assert.isFalse(Zotero.Groups.get(skippedGroupID));
+		});
+		
+		it("should filter out existing skipped libraries if library list not provided", function* () {
+			var unskippedGroupID = responses.groups.ownerGroup.json.id;
+			var skippedGroupID = responses.groups.memberGroup.json.id;
+			Zotero.Prefs.set('sync.librariesToSkip', `["L4", "G${skippedGroupID}"]`);
+			
+			var skippedGroup = yield createGroup({
+				id: skippedGroupID,
+				version: responses.groups.memberGroup.json.version - 1
+			});
+			
+			setResponse('userGroups.groupVersions');
+			setResponse('groups.ownerGroup');
+			setResponse('groups.memberGroup');
+			var libraries = yield runner.checkLibraries(
+				runner.getAPIClient({ apiKey }),
+				false,
+				responses.keyInfo.fullAccess.json
+			);
+			
+			var group = Zotero.Groups.get(unskippedGroupID);
+			assert.lengthOf(libraries, 2);
+			assert.sameMembers(libraries, [userLibraryID, group.libraryID]);
+			
+			assert.equal(skippedGroup.version, responses.groups.memberGroup.json.version - 1);
+		});
+		
+		it("shouldn't filter out skipped libraries if library list is provided", function* () {
+			var groupData = responses.groups.memberGroup;
+			var group = yield createGroup({
+				id: groupData.json.id,
+				version: groupData.json.version
+			});
+			
+			Zotero.Prefs.set('sync.librariesToSkip', `["L4", "G${group.id}"]`);
+			
+			setResponse('userGroups.groupVersions');
+			setResponse('groups.ownerGroup');
+			setResponse('groups.memberGroup');
+			var libraries = yield runner.checkLibraries(
+				runner.getAPIClient({ apiKey }),
+				false,
+				responses.keyInfo.fullAccess.json,
+				[userLibraryID, publicationsLibraryID, group.libraryID]
+			);
+			
+			assert.lengthOf(libraries, 3);
+			assert.sameMembers(libraries, [userLibraryID, publicationsLibraryID, group.libraryID]);
+		});
+		
 		it("should update outdated group metadata", function* () {
 			// Create groups with same id as groups response but earlier versions
 			var groupData1 = responses.groups.ownerGroup;
@@ -261,9 +337,16 @@ describe("Zotero.Sync.Runner", function () {
 			setResponse('userGroups.groupVersions');
 			setResponse('groups.ownerGroup');
 			setResponse('groups.memberGroup');
+			// Simulate acceptance of library reset for group 2 editable change
+			var stub = sinon.stub(Zotero.Sync.Data.Local, "checkLibraryForAccess")
+				.returns(Zotero.Promise.resolve(true));
+			
 			var libraries = yield runner.checkLibraries(
 				runner.getAPIClient({ apiKey }), false, responses.keyInfo.fullAccess.json
 			);
+			
+			assert.ok(stub.calledTwice);
+			stub.restore();
 			assert.lengthOf(libraries, 4);
 			assert.sameMembers(
 				libraries,
@@ -302,12 +385,19 @@ describe("Zotero.Sync.Runner", function () {
 			setResponse('userGroups.groupVersions');
 			setResponse('groups.ownerGroup');
 			setResponse('groups.memberGroup');
+			// Simulate acceptance of library reset for group 2 editable change
+			var stub = sinon.stub(Zotero.Sync.Data.Local, "checkLibraryForAccess")
+				.returns(Zotero.Promise.resolve(true));
+			
 			var libraries = yield runner.checkLibraries(
 				runner.getAPIClient({ apiKey }),
 				false,
 				responses.keyInfo.fullAccess.json,
 				[group1.libraryID, group2.libraryID]
 			);
+			
+			assert.ok(stub.calledTwice);
+			stub.restore();
 			assert.lengthOf(libraries, 2);
 			assert.sameMembers(libraries, [group1.libraryID, group2.libraryID]);
 			
@@ -395,6 +485,74 @@ describe("Zotero.Sync.Runner", function () {
 			assert.lengthOf(libraries, 0);
 			assert.isTrue(Zotero.Groups.exists(groupData.json.id));
 		})
+		
+		it("should prompt to revert local changes on loss of library write access", function* () {
+			var group = yield createGroup({
+				version: 1,
+				libraryVersion: 2
+			});
+			var libraryID = group.libraryID;
+			
+			setResponse({
+				method: "GET",
+				url: "users/1/groups?format=versions",
+				status: 200,
+				headers: {
+					"Last-Modified-Version": 3
+				},
+				json: {
+					[group.id]: 3
+				}
+			});
+			setResponse({
+				method: "GET",
+				url: "groups/" + group.id,
+				status: 200,
+				headers: {
+					"Last-Modified-Version": 3
+				},
+				json: {
+					id: group.id,
+					version: 2,
+					data: {
+						// Make group read-only
+						id: group.id,
+						version: 2,
+						name: group.name,
+						description: group.description,
+						owner: 2,
+						type: "Private",
+						libraryEditing: "admins",
+						libraryReading: "all",
+						fileEditing: "admins",
+						admins: [],
+						members: [1]
+					}
+				}
+			});
+			
+			// First, test cancelling
+			var stub = sinon.stub(Zotero.Sync.Data.Local, "checkLibraryForAccess")
+				.returns(Zotero.Promise.resolve(false));
+			var libraries = yield runner.checkLibraries(
+				runner.getAPIClient({ apiKey }), false, responses.keyInfo.fullAccess.json
+			);
+			assert.notInclude(libraries, group.libraryID);
+			assert.isTrue(stub.calledOnce);
+			assert.isTrue(group.editable);
+			stub.reset();
+			
+			// Next, reset
+			stub.returns(Zotero.Promise.resolve(true));
+			libraries = yield runner.checkLibraries(
+				runner.getAPIClient({ apiKey }), false, responses.keyInfo.fullAccess.json
+			);
+			assert.include(libraries, group.libraryID);
+			assert.isTrue(stub.calledOnce);
+			assert.isFalse(group.editable);
+			
+			stub.reset();
+		});
 	})
 
 	describe("#sync()", function () {
@@ -667,8 +825,8 @@ describe("Zotero.Sync.Runner", function () {
 			
 			// Last sync time should be within the last second
 			var lastSyncTime = Zotero.Sync.Data.Local.getLastSyncTime();
-			assert.isAbove(lastSyncTime, new Date().getTime() - 1000);
-			assert.isBelow(lastSyncTime, new Date().getTime());
+			assert.isAbove(lastSyncTime.getTime(), new Date().getTime() - 2000);
+			assert.isBelow(lastSyncTime.getTime(), new Date().getTime());
 		})
 		
 		
