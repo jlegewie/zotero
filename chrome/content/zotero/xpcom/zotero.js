@@ -460,7 +460,16 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		this.initializationDeferred.resolve();
 		
 		if(Zotero.isConnector) {
+			// Add toolbar icon
+			try {
+				Services.scriptloader.loadSubScript("chrome://zotero/content/icon.js", {}, "UTF-8");
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+			
 			Zotero.Repo.init();
+			Zotero.locked = false;
 		}
 		
 		if(!Zotero.isFirstLoadThisSession) {
@@ -811,8 +820,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 			}
 			// Storage busy
 			else if (e.message.endsWith('2153971713')) {
-				// TEMP: Disabled for 5.0 Beta
-				/*
 				if(Zotero.isStandalone) {
 					// Standalone should force Fx to release lock 
 					if(!haveReleasedLock && Zotero.IPC.broadcast("releaseLock")) {
@@ -836,7 +843,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 						throw "ZOTERO_SHOULD_START_AS_CONNECTOR";
 					}
 				}
-				*/
 				
 				var msg = Zotero.localeJoin([
 					Zotero.getString('startupError.databaseInUse'),

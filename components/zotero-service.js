@@ -336,9 +336,6 @@ function ZoteroService() {
 			makeZoteroContext(false);
 			zContext.Zotero.init(zInitOptions)
 			.catch(function (e) {
-				dump(e + "\n\n");
-				Components.utils.reportError(e);
-				
 				if (e === "ZOTERO_SHOULD_START_AS_CONNECTOR") {
 					// if Zotero should start as a connector, reload it
 					return zContext.Zotero.shutdown()
@@ -347,9 +344,10 @@ function ZoteroService() {
 						return zContext.Zotero.init(zInitOptions);
 					})
 				}
-				else {
-					throw e;
-				}
+				
+				dump(e + "\n\n");
+				Components.utils.reportError(e);
+				throw e;
 			})
 			.then(function () {
 				zContext.Zotero.debug("Initialized in "+(Date.now() - start)+" ms");
@@ -424,8 +422,6 @@ ZoteroCommandLineHandler.prototype = {
 		}
 		
 		// handler for Windows IPC commands
-		// TEMP: Disabled for 5.0 Beta
-		/*
 		var ipcParam = cmdLine.handleFlagWithParam("ZoteroIPC", false);
 		if(ipcParam) {
 			// Don't open a new window
@@ -433,7 +429,6 @@ ZoteroCommandLineHandler.prototype = {
 			var Zotero = this.Zotero;
 			Zotero.setTimeout(function() { Zotero.IPC.parsePipeInput(ipcParam) }, 0);
 		}
-		*/
 		
 		// special handler for "zotero" URIs at the command line to prevent them from opening a new
 		// window

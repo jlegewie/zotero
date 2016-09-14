@@ -29,10 +29,10 @@ var TRANSLATOR_REQUIRED_PROPERTIES = ["translatorID", "translatorType", "label",
 // Properties that are preserved if present
 var TRANSLATOR_OPTIONAL_PROPERTIES = ["browserSupport", "minVersion", "maxVersion",
                                       "inRepository", "configOptions", "displayOptions",
-                                      "hiddenPrefs"];
+                                      "hiddenPrefs", "itemType"];
 // Properties that are passed from background to inject page in connector
 var TRANSLATOR_PASSING_PROPERTIES = TRANSLATOR_REQUIRED_PROPERTIES.
-                                    concat(["browserSupport", "code", "runMode"]);
+                                    concat(["browserSupport", "code", "runMode", "itemType"]);
 // Properties that are saved in connector if set but not required
 var TRANSLATOR_SAVE_PROPERTIES = TRANSLATOR_REQUIRED_PROPERTIES.concat(["browserSupport"]);
 
@@ -78,7 +78,6 @@ Zotero.Translator.prototype.init = function(info) {
 		var property = TRANSLATOR_REQUIRED_PROPERTIES[i];
 		if(info[property] === undefined) {
 			this.logError(new Error('Missing property "'+property+'" in translator metadata JSON object in ' + info.label));
-			haveMetadata = false;
 			break;
 		} else {
 			this[property] = info[property];
@@ -140,36 +139,36 @@ Zotero.Translator.prototype.init = function(info) {
 /**
  * Load code for a translator
  */
-Zotero.Translator.prototype.getCode = function() {
-	if(this.code) return Zotero.Promise.resolve(this.code);
+Zotero.Translator.prototype.getCode = Zotero.Promise.method(function () {
+	if (this.code) return this.code;
 
-	var me = this;
 	if(Zotero.isConnector) {
-		// TODO make this a promise
-		return Zotero.Repo.getTranslatorCode(this.translatorID).
-		spread(function(code, source) {
+		return Zotero.Repo.getTranslatorCode(this.translatorID)
+		.then(function (args) {
+			var code = args[0];
+			var source = args[1];
 			if(!code) {
-				throw "Code for "+me.label+" could not be retrieved";
+				throw new Error("Code for " + this.label + " could not be retrieved");
 			}
 			// Cache any translators for session, since retrieving via
 			// HTTP may be expensive
-			me.code = code;
-			me.codeSource = source;
+			this.code = code;
+			this.codeSource = source;
 			return code;
-		});
+		}.bind(this));
 	} else {
 		var promise = Zotero.File.getContentsAsync(this.path);
 		if(this.cacheCode) {
 			// Cache target-less web translators for session, since we
 			// will use them a lot
-			promise.then(function(code) {
-				me.code = code;
+			return promise.then(function(code) {
+				this.code = code;
 				return code;
-			});
+			}.bind(this));
 		}
 		return promise;
 	}
-}
+});
 
 /**
  * Get metadata block for a translator

@@ -33,7 +33,13 @@ if (!Zotero.Sync) {
 Zotero.Sync.Runner_Module = function (options = {}) {
 	const stopOnError = false;
 	
-	Zotero.defineProperty(this, 'enabled', { get: () => _apiKey || Zotero.Sync.Data.Local.getAPIKey() });
+	Zotero.defineProperty(this, 'enabled', {
+		get: () => {
+			if (_apiKey) return true;
+			var username = Zotero.Prefs.get('sync.server.username');
+			return username && Zotero.Sync.Data.Local.getLegacyPassword(username);
+		}
+	});
 	Zotero.defineProperty(this, 'syncInProgress', { get: () => _syncInProgress });
 	Zotero.defineProperty(this, 'lastSyncStatus', { get: () => _lastSyncStatus });
 	
@@ -1267,7 +1273,7 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 
 
 	this.deleteAPIKey = Zotero.Promise.coroutine(function* (){
-		var apiKey = Zotero.Sync.Data.Local.getAPIKey();
+		var apiKey = yield Zotero.Sync.Data.Local.getAPIKey();
 		var client = this.getAPIClient({apiKey});
 		Zotero.Sync.Data.Local.setAPIKey();
 		yield client.deleteAPIKey();
@@ -1313,30 +1319,8 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 	}
 	
 	
-	var _getAPIKey = Zotero.Promise.coroutine(function* () {
-		// Set as .apiKey on Runner in tests
-		return _apiKey
-			// Set in login manager
-			|| Zotero.Sync.Data.Local.getAPIKey()
-			// Fallback to old username/password
-			|| _getAPIKeyFromLogin();
-	})
-	
-	
-	var _getAPIKeyFromLogin = Zotero.Promise.coroutine(function* () {
-		let username = Zotero.Prefs.get('sync.server.username');
-		if (username) {
-			// Check for legacy password if no password set in current session
-			// and no API keys stored yet
-			let password = Zotero.Sync.Data.Local.getLegacyPassword(username);
-			if (!password) {
-				return "";
-			}
-
-			let json = yield Zotero.Sync.Runner.createAPIKeyFromCredentials(username, password);
-			Zotero.Sync.Data.Local.removeLegacyLogins();
-			return json.key;
-		}
-		return "";
+	var _getAPIKey = Zotero.Promise.method(function () {
+		// Set as .apiKey on Runner in tests or set in login manager
+		return _apiKey || Zotero.Sync.Data.Local.getAPIKey()
 	})
 }
