@@ -766,6 +766,7 @@ Zotero.CollectionTreeView.prototype.getImageSrc = function(row, col)
 		
 		case 'collection':
 		case 'search':
+			// Keep in sync with Zotero.(Collection|Search).prototype.treeViewImage
 			if (Zotero.isMac) {
 				return "chrome://zotero-platform/content/treesource-" + collectionType + ".png";
 			}
@@ -1181,9 +1182,7 @@ Zotero.CollectionTreeView.prototype.deleteSelection = Zotero.Promise.coroutine(f
 		//erase collection from DB:
 		var treeRow = this.getRow(rows[i]-i);
 		if (treeRow.isCollection() || treeRow.isFeed()) {
-			yield treeRow.ref.eraseTx({
-				deleteItems: true
-			});
+			yield treeRow.ref.eraseTx({ deleteItems });
 			if (treeRow.isFeed()) {
 				refreshFeeds = true;
 			}

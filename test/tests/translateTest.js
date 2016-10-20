@@ -2,26 +2,6 @@ new function() {
 Components.utils.import("resource://gre/modules/osfile.jsm");
 
 /**
- * Build a dummy translator that can be passed to Zotero.Translate
- */
-function buildDummyTranslator(translatorType, code) {
-	let info = {
-		"translatorID":"dummy-translator",
-		"translatorType":1, // import
-		"label":"Dummy Translator",
-		"creator":"Simon Kornblith",
-		"target":"",
-		"priority":100,
-		"browserSupport":"g",
-		"inRepository":false,
-		"lastUpdated":"0000-00-00 00:00:00",
-	};
-	let translator = new Zotero.Translator(info);
-	translator.code = code;
-	return translator;
-}
-
-/**
  * Create a new translator that saves the specified items
  * @param {String} translatorType - "import" or "web"
  * @param {Object} items - items as translator JSON
@@ -570,6 +550,49 @@ describe("Zotero.Translate", function() {
 			assert.equal(pdf.getNote(), "attachment note");
 			assert.equal(pdf.attachmentLinkMode, Zotero.Attachments.LINK_MODE_IMPORTED_URL);
 			checkTestTags(pdf, true);
+		});
+		
+		it('should not convert tags to canonical form in child translators', function* () {
+			var childTranslator = buildDummyTranslator(1, 
+				`function detectWeb() {}
+				function doImport() {
+					var item = new Zotero.Item;
+					item.itemType = "book";
+					item.title = "The Definitive Guide of Owls";
+					item.tags = ['owl', 'tag'];
+					item.complete();
+				}`, {translatorID: 'child-dummy-translator'}
+			);
+			sinon.stub(Zotero.Translators, 'get').withArgs('child-dummy-translator').returns(childTranslator);
+			
+			var parentTranslator = buildDummyTranslator(1,
+				`function detectWeb() {}
+				function doImport() {
+					var translator = Zotero.loadTranslator("import");
+					translator.setTranslator('child-dummy-translator');
+					translator.setHandler('itemDone', Zotero.childItemDone);
+					translator.translate();
+				}`
+			);
+			
+			function childItemDone(obj, item) {
+				// Non-canonical tags after child translator is done
+				assert.deepEqual(['owl', 'tag'], item.tags);
+				item.complete();
+			}
+			
+			var translate = new Zotero.Translate.Import();
+			translate.setTranslator(parentTranslator);
+			translate.setString("");
+			yield translate._loadTranslator(parentTranslator);
+			translate._sandboxManager.importObject({childItemDone});
+			
+			var items = yield translate.translate();
+			
+			// Canonicalized tags after parent translator
+			assert.deepEqual([{tag: 'owl'}, {tag: 'tag'}], items[0].getTags());
+			
+			Zotero.Translators.get.restore();
 		});
 	});
 });

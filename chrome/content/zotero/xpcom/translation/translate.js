@@ -127,8 +127,10 @@ Zotero.Translate.Sandbox = {
 				}
 			}
 
-			// Canonicalize tags
-			if(item.tags) item.tags = translate._cleanTags(item.tags);
+			// If we're not in a child translator, canonicalize tags
+			if (!translate._parentTranslator) {
+				if(item.tags) item.tags = translate._cleanTags(item.tags);
+			}
 			
 			// if we're not supposed to save the item or we're in a child translator,
 			// just return the item array
@@ -158,8 +160,10 @@ Zotero.Translate.Sandbox = {
 						delete attachment.document;
 					}
 
-					// Canonicalize tags
-					if(attachment.tags !== undefined) attachment.tags = translate._cleanTags(attachment.tags);
+					// If we're not in a child translator, canonicalize tags
+					if (!translate._parentTranslator) {
+						if(attachment.tags !== undefined) attachment.tags = translate._cleanTags(attachment.tags);
+					}
 				}
 			}
 
@@ -169,12 +173,13 @@ Zotero.Translate.Sandbox = {
 					var note = notes[j];
 					if(!note) {
 						notes.splice(j--, 1);
-					} else if(typeof(note) == "object") {
-						// Canonicalize tags
-						if(note.tags !== undefined) note.tags = translate._cleanTags(note.tags);
-					} else {
+					} else if(typeof(note) != "object") {
 						// Convert to object
 						notes[j] = {"note":note.toString()}
+					}
+					// If we're not in a child translator, canonicalize tags
+					if (!translate._parentTranslator) {
+						if(note.tags !== undefined) note.tags = translate._cleanTags(note.tags);
 					}
 				}
 			}
@@ -424,7 +429,7 @@ Zotero.Translate.Sandbox = {
 				});
 			};
 
-			if(Zotero.isFx && Zotero.platformMajorVersion >= 33) {
+			if (Zotero.isFx) {
 				for(var i in safeTranslator) {
 					if (typeof(safeTranslator[i]) === "function") {
 						safeTranslator[i] = translate._sandboxManager._makeContentForwarder(function(func) {
@@ -1264,7 +1269,7 @@ Zotero.Translate.Base.prototype = {
 		
 		// Zotero.Translators.get() returns a promise in the connectors, but we don't expect it to
 		// otherwise
-		if (!this.isConnector && this.translator[0].then) {
+		if (!Zotero.isConnector && this.translator[0].then) {
 			throw new Error("Translator should not be a promise in non-connector mode");
 		}
 		
@@ -1741,9 +1746,12 @@ Zotero.Translate.Base.prototype = {
 			this._sandboxManager = new Zotero.Translate.SandboxManager(this._sandboxLocation);
 		}
 		const createArrays = "['creators', 'notes', 'tags', 'seeAlso', 'attachments']";
-		var src = "var Zotero = {};"+
-		"Zotero.Item = function (itemType) {"+
-				"const createArrays = "+createArrays+";"+
+		var src = "";
+		if (Zotero.isFx && !Zotero.isBookmarklet) {
+			src = "var Zotero = {};";
+		}
+		src += "Zotero.Item = function (itemType) {"+
+				"var createArrays = "+createArrays+";"+
 				"this.itemType = itemType;"+
 				"for(var i=0, n=createArrays.length; i<n; i++) {"+
 					"this[createArrays[i]] = [];"+
@@ -1875,7 +1883,8 @@ Zotero.Translate.Web.prototype.Sandbox = Zotero.Translate.Sandbox._inheritFromBa
  */
 Zotero.Translate.Web.prototype.setDocument = function(doc) {
 	this.document = doc;
-	this.setLocation(doc.location.href);
+	this.rootDocument = doc.defaultView.top.document || doc;
+	this.setLocation(doc.location.href, this.rootDocument.location.href);
 }
 
 /**
@@ -1892,9 +1901,11 @@ Zotero.Translate.Web.prototype.setCookieSandbox = function(cookieSandbox) {
  * Sets the location to operate upon
  *
  * @param {String} location The URL of the page to translate
+ * @param {String} rootLocation The URL of the root page, within which `location` is embedded
  */
-Zotero.Translate.Web.prototype.setLocation = function(location) {
+Zotero.Translate.Web.prototype.setLocation = function(location, rootLocation) {
 	this.location = location;
+	this.rootLocation = rootLocation || location;
 	this.path = this.location;
 }
 
@@ -1902,7 +1913,7 @@ Zotero.Translate.Web.prototype.setLocation = function(location) {
  * Get potential web translators
  */
 Zotero.Translate.Web.prototype._getTranslatorsGetPotentialTranslators = function() {
-	return Zotero.Translators.getWebTranslatorsForLocation(this.location);
+	return Zotero.Translators.getWebTranslatorsForLocation(this.location, this.rootLocation);
 }
 
 /**

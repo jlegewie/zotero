@@ -1760,15 +1760,6 @@ Zotero.Utilities = {
 			cslItem.title = Zotero.Notes.noteToTitle(zoteroItem.note);
 		}
 		
-		// extract PMID
-		var extra = zoteroItem.extra;
-		if(typeof extra === "string") {
-			var m = /(?:^|\n)PMID:\s*([0-9]+)/.exec(extra);
-			if(m) cslItem.PMID = m[1];
-			m = /(?:^|\n)PMCID:\s*((?:PMC)?[0-9]+)/.exec(extra);
-			if(m) cslItem.PMCID = m[1];
-		}
-		
 		//this._cache[zoteroItem.id] = cslItem;
 		return cslItem;
 	},
@@ -1880,7 +1871,7 @@ Zotero.Utilities = {
 						item.setCreator(item.getCreators().length, creator);
 					} else {
 						creator.creatorType = Zotero.CreatorTypes.getName(creatorTypeID);
-						if(Zotero.isFx && !Zotero.isBookmarklet && Zotero.platformMajorVersion >= 32) {
+						if (Zotero.isFx && !Zotero.isBookmarklet) {
 							creator = Components.utils.cloneInto(creator, item);
 						}
 						item.creators.push(creator);

@@ -11,6 +11,7 @@
 <!ENTITY zotero.general.refresh "刷新">
 <!ENTITY zotero.general.saveAs "另存为...">
 <!ENTITY zotero.general.advancedOptions.label "高级选项">
+<!ENTITY zotero.general.more "更多">
 
 <!ENTITY zotero.errorReport.title "Zotero 错误报告">
 <!ENTITY zotero.errorReport.unrelatedMessages "这里可能包括和Zotero无关的消息。">
@@ -176,7 +177,7 @@
 
 <!ENTITY zotero.bibliography.title "创建引文目录">
 <!ENTITY zotero.bibliography.style.label "引文样式:">
-<!ENTITY zotero.bibliography.manageStyles "Manage Styles…">
+<!ENTITY zotero.bibliography.manageStyles "管理样式...">
 <!ENTITY zotero.bibliography.locale.label "语言：">
 <!ENTITY zotero.bibliography.outputMode "输出模式:">
 <!ENTITY zotero.bibliography.bibliography "引文目录">

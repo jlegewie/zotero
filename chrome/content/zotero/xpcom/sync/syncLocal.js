@@ -54,6 +54,20 @@ Zotero.Sync.Data.Local = {
 	}),
 	
 	
+	/**
+	 * Check for an API key or a legacy username/password (which may or may not be valid)
+	 */
+	hasCredentials: function () {
+		var login = this._getAPIKeyLoginInfo();
+		if (login) {
+			return true;
+		}
+		// If no API key, check for legacy login
+		var username = Zotero.Prefs.get('sync.server.username');
+		return username && !!this.getLegacyPassword(username)
+	},
+	
+	
 	setAPIKey: function (apiKey) {
 		var loginManager = Components.classes["@mozilla.org/login-manager;1"]
 			.getService(Components.interfaces.nsILoginManager);
@@ -109,7 +123,7 @@ Zotero.Sync.Data.Local = {
 			var io = {
 				title: Zotero.getString('general.warning'),
 				text: [Zotero.getString('account.lastSyncWithDifferentAccount', [ZOTERO_CONFIG.CLIENT_NAME, lastUsername, username])],
-				checkboxLabel: Zotero.getString('account.confirmDelete', lastUsername),
+				checkboxLabel: Zotero.getString('account.confirmDelete'),
 				acceptLabel: Zotero.getString('account.confirmDelete.button')
 			};
 			win.openDialog("chrome://zotero/content/hardConfirmationDialog.xul", "",

@@ -82,6 +82,9 @@ const xpcomFilesLocal = [
 	'data/groups',
 	'data/itemFields',
 	'data/relations',
+	'data/search',
+	'data/searchConditions',
+	'data/searches',
 	'data/tags',
 	'db',
 	'duplicates',
@@ -98,7 +101,6 @@ const xpcomFilesLocal = [
 	'report',
 	'router',
 	'schema',
-	'search',
 	'server',
 	'style',
 	'sync',
@@ -503,12 +505,4 @@ ZoteroCommandLineHandler.prototype.__defineGetter__("Zotero", function() {
 	return zContext.Zotero;
 });
 
-/**
-* XPCOMUtils.generateNSGetFactory was introduced in Mozilla 2 (Firefox 4).
-* XPCOMUtils.generateNSGetModule is for Mozilla 1.9.2 (Firefox 3.6).
-*/
-if (XPCOMUtils.generateNSGetFactory) {
-	var NSGetFactory = XPCOMUtils.generateNSGetFactory([ZoteroService, ZoteroCommandLineHandler]);
-} else {
-	var NSGetModule = XPCOMUtils.generateNSGetModule([ZoteroService, ZoteroCommandLineHandler]);
-}
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([ZoteroService, ZoteroCommandLineHandler]);

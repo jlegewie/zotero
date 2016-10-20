@@ -32,6 +32,7 @@ var ZoteroPane = new function()
 	var _unserialized = false;
 	this.collectionsView = false;
 	this.itemsView = false;
+	this.progressWindow = false;
 	this._listeners = {};
 	this.__defineGetter__('loaded', function () _loaded);
 	var _lastSelectedItems = [];
@@ -81,10 +82,6 @@ var ZoteroPane = new function()
 				&& window.document.documentElement.getAttribute('sizemode') == 'fullscreen') {
 			window.document.documentElement.setAttribute('sizemode', 'normal');
 		}
-		
-		// Set flags for hi-res displays
-		Zotero.hiDPI = window.devicePixelRatio > 1;
-		Zotero.hiDPISuffix = Zotero.hiDPI ? "@2x" : "";
 		
 		// Set "Report Errors..." label via property rather than DTD entity,
 		// since we need to reference it in script elsewhere
@@ -146,7 +143,14 @@ var ZoteroPane = new function()
 	function _loadPane() {
 		if(!Zotero || !Zotero.initialized || Zotero.isConnector) return;
 		
+		// Set flags for hi-res displays
+		Zotero.hiDPI = window.devicePixelRatio > 1;
+		Zotero.hiDPISuffix = Zotero.hiDPI ? "@2x" : "";
+		
 		ZoteroPane_Local.setItemsPaneMessage(Zotero.getString('pane.items.loading'));
+		
+		// Add a default progress window
+		ZoteroPane_Local.progressWindow = new Zotero.ProgressWindow(window);
 		
 		//Initialize collections view
 		ZoteroPane_Local.collectionsView = new Zotero.CollectionTreeView();
@@ -365,6 +369,8 @@ var ZoteroPane = new function()
 		
 		yield Zotero.unlockPromise;
 		
+		// The items pane is hidden initially to avoid showing column lines
+		document.getElementById('zotero-items-tree').hidden = false;
 		Zotero.hideZoteroPaneOverlays();
 		
 		// If pane not loaded, load it or display an error message
@@ -946,6 +952,12 @@ var ZoteroPane = new function()
 			Zotero.getString('pane.collections.untitled'));
 		var io = {dataIn: {search: s, name: untitled}, dataOut: null};
 		window.openDialog('chrome://zotero/content/searchDialog.xul','','chrome,modal',io);
+		if (!io.dataOut) {
+			return false;
+		}
+		s.fromJSON(io.dataOut.json);
+		yield s.saveTx();
+		return s.id;
 	});
 	
 	
@@ -1326,7 +1338,7 @@ var ZoteroPane = new function()
 	
 	
 	this.getCollectionTreeRow = function () {
-		if (!this.collectionsView.selection.count) {
+		if (!this.collectionsView || !this.collectionsView.selection.count) {
 			return false;
 		}
 		return this.collectionsView.getRow(this.collectionsView.selection.currentIndex);
@@ -4796,7 +4808,10 @@ var ZoteroPane = new function()
 			itemsToolbar.setAttribute("flex", "0");
 			itemToolbar.setAttribute("flex", "1");
 		}
-
+		
+		// Allow item pane to shrink to available height in stacked mode, but don't expand to be too
+		// wide when there's no persisted width in non-stacked mode
+		itemPane.setAttribute("flex", stackedLayout ? 1 : 0);
 	}
 	
 	/**
