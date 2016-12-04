@@ -10,16 +10,15 @@ pref("extensions.zotero.saveRelativeAttachmentPath", false);
 pref("extensions.zotero.baseAttachmentPath", '');
 pref("extensions.zotero.useDataDir", false);
 pref("extensions.zotero.dataDir", '');
-pref("extensions.zotero.lastDataDir", '');
 pref("extensions.zotero.warnOnUnsafeDataDir", true);
 pref("extensions.zotero.debug.log",false);
+pref("extensions.zotero.debug.log.slowTime", 250);
 pref("extensions.zotero.debug.stackTrace", false);
 pref("extensions.zotero.debug.store",false);
 pref("extensions.zotero.debug.store.limit",500000);
 pref("extensions.zotero.debug.store.submitSize",10000000);
 pref("extensions.zotero.debug.store.submitLineLength",10000);
 pref("extensions.zotero.debug.level",5);
-pref("extensions.zotero.debug.time", false);
 pref("extensions.zotero.automaticScraperUpdates",true);
 pref("extensions.zotero.zoteroDotOrgVersionHeader", true);
 pref("extensions.zotero.triggerProxyAuthentication", true);
@@ -88,6 +87,8 @@ pref("extensions.zotero.keys.sync", 'Y');
 pref("extensions.zotero.keys.toggleAllRead", 'R');
 pref("extensions.zotero.keys.toggleRead", '`');
 
+pref("extensions.zotero.search.quicksearch-mode", "fields");
+
 // Fulltext indexing
 pref("extensions.zotero.fulltext.textMaxLength", 500000);
 pref("extensions.zotero.fulltext.pdfMaxPages", 100);
@@ -107,7 +108,7 @@ pref("extensions.zotero.export.lastTranslator", '14763d24-8ba0-45df-8f52-b8d1108
 pref("extensions.zotero.export.translatorSettings", 'true,false');
 pref("extensions.zotero.export.lastStyle", 'http://www.zotero.org/styles/chicago-note-bibliography');
 pref("extensions.zotero.export.bibliographySettings", 'save-as-rtf');
-pref("extensions.zotero.export.displayCharsetOption", false);
+pref("extensions.zotero.export.displayCharsetOption", true);
 pref("extensions.zotero.export.citePaperJournalArticleURL", false);
 pref("extensions.zotero.cite.automaticJournalAbbreviations", true);
 pref("extensions.zotero.import.charset", "auto");

@@ -816,13 +816,39 @@ Zotero.Sync.Data.Engine.prototype._startUpload = Zotero.Promise.coroutine(functi
 		
 		// New/modified objects
 		let ids = yield Zotero.Sync.Data.Local.getUnsynced(objectType, this.libraryID);
+		let origIDs = ids; // TEMP
 		
 		// Skip objects in sync queue, because they might have unresolved conflicts.
 		// The queue only has keys, so we have to convert to keys and back.
 		let unsyncedKeys = ids.map(id => objectsClass.getLibraryAndKeyFromID(id).key);
+		let origUnsynced = unsyncedKeys; // TEMP
 		let queueKeys = yield Zotero.Sync.Data.Local.getObjectsFromSyncQueue(objectType, this.libraryID);
 		unsyncedKeys = Zotero.Utilities.arrayDiff(unsyncedKeys, queueKeys);
-		ids = unsyncedKeys.map(key => objectsClass.getIDFromLibraryAndKey(this.libraryID, key));
+		// TEMP
+		//ids = unsyncedKeys.map(key => objectsClass.getIDFromLibraryAndKey(this.libraryID, key));
+		let missing = [];
+		ids = unsyncedKeys.map(key => {
+			let id = objectsClass.getIDFromLibraryAndKey(this.libraryID, key)
+			if (!id) {
+				Zotero.debug("Missing id for key " + key);
+				missing.push(key);
+			}
+			return id;
+		});
+		if (missing.length) {
+			Zotero.debug("Missing " + objectTypePlural + ":");
+			Zotero.debug(origIDs);
+			Zotero.debug(origUnsynced);
+			Zotero.debug(ids);
+			Zotero.debug(unsyncedKeys);
+			Zotero.debug(missing);
+			for (let key of missing) {
+				Zotero.debug(yield Zotero.DB.valueQueryAsync(
+					`SELECT ${objectsClass.idColumn} FROM ${objectsClass.table} WHERE libraryID=? AND key=?`,
+					[this.libraryID, key]
+				));
+			}
+		}
 		
 		if (ids.length) {
 			Zotero.debug(ids.length + " "
@@ -936,7 +962,7 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 					objectType,
 					o.id,
 					{
-						// Only storage properties ('mtime', 'md5') for WebDAV files
+						// Only include storage properties ('mtime', 'md5') for WebDAV files
 						skipStorageProperties:
 							objectType == 'item'
 								? Zotero.Sync.Storage.Local.getModeForLibrary(this.library.libraryID)

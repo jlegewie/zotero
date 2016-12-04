@@ -139,16 +139,33 @@ Zotero.Connector = new function() {
 	/**
 	 * Sends the XHR to execute an RPC call.
 	 *
-	 * @param	{String}		method			RPC method. See documentation above.
-	 * @param	{Object}		data			RPC data. See documentation above.
-	 * @param	{Function}		callback		Function to be called when requests complete.
+	 * @param {String|Object} options - The method name as a string or an object with the
+	 *     following properties:
+	 *         method - method name
+	 *         headers - an object of HTTP headers to send
+	 *         queryString - a query string to pass on the HTTP call
+	 * @param {Object} data - RPC data to POST. If null or undefined, a GET request is sent.
+	 * @param {Function} callback - Function to be called when requests complete.
 	 */
-	this.callMethod = function(method, data, callback, tab) {
+	this.callMethod = function(options, data, callback, tab) {
 		// Don't bother trying if not online in bookmarklet
 		if(Zotero.isBookmarklet && this.isOnline === false) {
 			callback(false, 0);
 			return;
 		}
+		if (typeof options == 'string') {
+			options = {method: options};
+		}
+		var method = options.method;
+		var sendRequest = (data === null || data === undefined)
+			? Zotero.HTTP.doGet.bind(Zotero.HTTP)
+			: Zotero.HTTP.doPost.bind(Zotero.HTTP);
+		var headers = Object.assign({
+				"Content-Type":"application/json",
+				"X-Zotero-Version":Zotero.version,
+				"X-Zotero-Connector-API-Version":CONNECTOR_API_VERSION
+			}, options.headers);
+		var queryString = options.queryString ? ("?" + options.queryString) : "";
 		
 		var newCallback = function(req) {
 			try {
@@ -203,13 +220,11 @@ Zotero.Connector = new function() {
 				callback(false, 0);
 			}
 		} else {							// Other browsers can use plain doPost
-			var uri = CONNECTOR_URI+"connector/"+method;
-			Zotero.HTTP.doPost(uri, JSON.stringify(data),
-				newCallback, {
-					"Content-Type":"application/json",
-					"X-Zotero-Version":Zotero.version,
-					"X-Zotero-Connector-API-Version":CONNECTOR_API_VERSION
-				});
+			var uri = CONNECTOR_URI + "connector/" + method + queryString;
+			if (headers["Content-Type"] == 'application/json') {
+				data = JSON.stringify(data);
+			}
+			sendRequest(uri, data, newCallback, headers);
 		}
 	},
 	
@@ -256,6 +271,9 @@ Zotero.Connector = new function() {
 					data.detailedCookies = cookieHeader.substr(1);
 				}
 				
+				// Cookie URI needed to set up the cookie sandbox on standalone
+				data.uri = tab.url;
+				
 				self.callMethod("saveItems", data, callback, tab);
 			});
 			return;
@@ -276,9 +294,9 @@ Zotero.Connector_Debug = new function() {
 	/**
 	 * Call a callback with the lines themselves
 	 */
-	this.get = Zotero.Promise.coroutine(function* (callback) {
-		callback(yield Zotero.Debug.get());
-	});
+	this.get = function(callback) {
+		Zotero.Debug.get().then(callback);
+	};
 		
 	/**
 	 * Call a callback with the number of lines of output
@@ -290,29 +308,31 @@ Zotero.Connector_Debug = new function() {
 	/**
 	 * Submit data to the server
 	 */
-	this.submitReport = Zotero.Promise.coroutine(function* (callback) {
-		var output = yield Zotero.Debug.get();
-		var req = yield Zotero.HTTP.request(
-			ZOTERO_CONFIG.REPOSITORY_URL + "report?debug=1",
-			{
-				headers: {
-					"Content-Type": "text/plain"
-				},
-				body: output,
-				successCodes: false
+	this.submitReport = function(callback) {
+		Zotero.Debug.get().then(function(output){
+			return Zotero.HTTP.request(
+				ZOTERO_CONFIG.REPOSITORY_URL + "report?debug=1",
+				{
+					headers: {
+						"Content-Type": "text/plain"
+					},
+					body: output,
+					successCodes: false
+				}
+			);
+		}).then(function(xmlhttp){
+			if (!xmlhttp.responseXML) {
+				callback(false, 'Invalid response from server');
+				return;
 			}
-		);
-		if (!xmlhttp.responseXML) {
-			callback(false, 'Invalid response from server');
-			return;
-		}
-		var reported = xmlhttp.responseXML.getElementsByTagName('reported');
-		if (reported.length != 1) {
-			callback(false, 'The server returned an error. Please try again.');
-			return;
-		}
-		
-		var reportID = reported[0].getAttribute('reportID');
-		callback(true, reportID);
-	});
+			var reported = xmlhttp.responseXML.getElementsByTagName('reported');
+			if (reported.length != 1) {
+				callback(false, 'The server returned an error. Please try again.');
+				return;
+			}
+			
+			var reportID = reported[0].getAttribute('reportID');
+			callback(true, reportID);
+		});
+	};
 }

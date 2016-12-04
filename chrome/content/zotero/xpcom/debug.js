@@ -25,17 +25,26 @@
 
 
 Zotero.Debug = new function () {
-	var _console, _consolePref, _stackTrace, _store, _level, _time, _lastTime, _output = [];
+	var _console, _consolePref, _stackTrace, _store, _level, _lastTime, _output = [];
+	var _slowTime = false;
+	var _colorOutput = false;
 	
 	this.init = function (forceDebugLog) {
 		_consolePref = Zotero.Prefs.get('debug.log');
 		_console = _consolePref || forceDebugLog;
+		if (_console && Zotero.isFx && !Zotero.isBookmarklet && (!Zotero.isWin || _consolePref)) {
+			_colorOutput = true;
+		}
+		if (_colorOutput) {
+			// Time threshold in milliseconds above which intervals
+			// should be colored red in terminal output
+			_slowTime = Zotero.Prefs.get('debug.log.slowTime');
+		}
 		_store = Zotero.Prefs.get('debug.store');
 		if (_store) {
 			Zotero.Prefs.set('debug.store', false);
 		}
 		_level = Zotero.Prefs.get('debug.level');
-		_time = forceDebugLog || Zotero.Prefs.get('debug.time');
 		_stackTrace = Zotero.Prefs.get('debug.stackTrace');
 		
 		this.storing = _store;
@@ -61,19 +70,28 @@ Zotero.Debug = new function () {
 		}
 		
 		var deltaStr = '';
-		if (_time || _store) {
-			var delta = 0;
-			var d = new Date();
-			if (_lastTime) {
-				delta = d - _lastTime;
-			}
-			_lastTime = d;
-			
-			while (("" + delta).length < 7) {
-				delta = '0' + delta;
-			}
-			
-			deltaStr = '(+' + delta + ')';
+		var deltaStrStore = '';
+		var delta = 0;
+		var d = new Date();
+		if (_lastTime) {
+			delta = d - _lastTime;
+		}
+		_lastTime = d;
+		var slowPrefix = "";
+		var slowSuffix = "";
+		if (_slowTime && delta > _slowTime) {
+			slowPrefix = "\033[31;40m";
+			slowSuffix = "\033[0m";
+		}
+		
+		// TODO: Replace with String.prototype.padStart once available (Fx48)
+		while (("" + delta).length < 7) {
+			delta = '0' + delta;
+		}
+		
+		deltaStr = "(" + slowPrefix + "+" + delta + slowSuffix + ")";
+		if (_store) {
+			deltaStrStore = "(+" + delta + ")";
 		}
 		
 		if (stack === true) {
@@ -97,7 +115,7 @@ Zotero.Debug = new function () {
 		}
 		
 		if (_console) {
-			var output = 'zotero(' + level + ')' + (_time ? deltaStr : '') + ': ' + message;
+			var output = 'zotero(' + level + ')' + deltaStr + ': ' + message;
 			if(Zotero.isFx && !Zotero.isBookmarklet) {
 				// On Windows, where the text console (-console) is inexplicably glacial,
 				// log to the Browser Console instead if only the -ZoteroDebug flag is used.
@@ -105,7 +123,7 @@ Zotero.Debug = new function () {
 				//
 				// TODO: Get rid of the filename and line number
 				if (!_consolePref && Zotero.isWin && !Zotero.isStandalone) {
-					var console = Components.utils.import("resource://gre/modules/devtools/Console.jsm", {}).console;
+					var console = Components.utils.import("resource://gre/modules/Console.jsm", {}).console;
 					console.log(output);
 				}
 				// Otherwise dump to the text console
@@ -124,12 +142,12 @@ Zotero.Debug = new function () {
 					_output.splice(0, Math.abs(overage));
 				}
 			}
-			_output.push('(' + level + ')' + deltaStr + ': ' + message);
+			_output.push('(' + level + ')' + deltaStrStore + ': ' + message);
 		}
 	}
 	
 	
-	this.get = Zotero.Promise.coroutine(function* (maxChars, maxLineLength) {
+	this.get = Zotero.Promise.method(function(maxChars, maxLineLength) {
 		var output = _output;
 		var total = output.length;
 		
@@ -158,11 +176,13 @@ Zotero.Debug = new function () {
 			}
 		}
 		
-		if(Zotero.getErrors) {
-			return Zotero.getErrors(true).join('\n\n') +
-					"\n\n" + (yield Zotero.getSystemInfo()) + "\n\n" +
+		if (Zotero.getErrors) {
+			return Zotero.getSystemInfo().then(function(sysInfo) {
+				return Zotero.getErrors(true).join('\n\n') +
+					"\n\n" + sysInfo + "\n\n" +
 					"=========================================================\n\n" +
 					output;
+			});
 		} else {
 			return output;
 		}

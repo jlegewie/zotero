@@ -413,7 +413,7 @@ Zotero.Sync.Storage.Local = {
 		else if (Math.floor(mtime / 1000) * 1000 == fmtime
 				|| Math.floor(fmtime / 1000) * 1000 == mtime) {
 			Zotero.debug(`File mod times for ${libraryKey} are within one-second precision `
-				+ "(" + fmtime + " ≅ " + mtime + ") -- skipping");
+				+ "(" + fmtime + " \u2248 " + mtime + ") -- skipping");
 		}
 		// Allow timestamp to be exactly one hour off to get around time zone issues
 		// -- there may be a proper way to fix this
@@ -566,13 +566,18 @@ Zotero.Sync.Storage.Local = {
 			// If library isn't editable but filename was changed, update
 			// database without updating the item's mod time, which would result
 			// in a library access error
-			if (!Zotero.Items.isEditable(item)) {
-				Zotero.debug("File renamed without library access -- "
-					+ "updating itemAttachments path", 3);
-				yield item.relinkAttachmentFile(newPath, true);
+			try {
+				if (!Zotero.Items.isEditable(item)) {
+					Zotero.debug("File renamed without library access -- "
+						+ "updating itemAttachments path", 3);
+					yield item.relinkAttachmentFile(newPath, true);
+				}
+				else {
+					yield item.relinkAttachmentFile(newPath);
+				}
 			}
-			else {
-				yield item.relinkAttachmentFile(newPath);
+			catch (e) {
+				Zotero.File.checkFileAccessError(e, path, 'update');
 			}
 			
 			path = newPath;
@@ -637,6 +642,7 @@ Zotero.Sync.Storage.Local = {
 			return false;
 		}
 		
+		var dir = OS.Path.dirname(path);
 		var fileName = OS.Path.basename(path);
 		var renamed = false;
 		
@@ -646,7 +652,7 @@ Zotero.Sync.Storage.Local = {
 		if (filteredName != fileName) {
 			Zotero.debug("Filtering filename '" + fileName + "' to '" + filteredName + "'");
 			fileName = filteredName;
-			path = OS.Path.dirname(path, fileName);
+			path = OS.Path.join(dir, fileName);
 			renamed = true;
 		}
 		
@@ -665,7 +671,7 @@ Zotero.Sync.Storage.Local = {
 			Zotero.debug("Changed filename '" + fileName + "' to '" + finalFileName + "'");
 			
 			fileName = finalFileName;
-			path = OS.Path.dirname(path, fileName);
+			path = OS.Path.join(dir, fileName);
 			
 			// Abort if Windows path limitation would cause filenames to be overly truncated
 			if (Zotero.isWin && fileName.length < 40) {
@@ -854,7 +860,7 @@ Zotero.Sync.Storage.Local = {
 					throw new Error(msg);
 				}
 				
-				destPath = OS.Path.join(OS.Path.dirname(destPath, shortened));
+				destPath = OS.Path.join(OS.Path.dirname(destPath), shortened);
 				
 				if (primaryFile) {
 					renamed = true;

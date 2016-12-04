@@ -206,7 +206,7 @@ Zotero.Cite = {
 				}
 				// If only one field, apply hanging indent on root
 				else if (!multiField) {
-					style += "padding-left: " + hangingIndent + "em; text-indent:-" + hangingIndent + "em;";
+					style += "margin-left: " + hangingIndent + "em; text-indent:-" + hangingIndent + "em;";
 				}
 			}
 			
@@ -333,7 +333,7 @@ Zotero.Cite.getAbbreviation = new function() {
 	}
 
 	function loadAbbreviations() {
-		var file = Zotero.getZoteroDirectory();
+		var file = Zotero.File.pathToFile(Zotero.DataDirectory.dir);
 		file.append("abbreviations.json");
 
 		var json, origin;

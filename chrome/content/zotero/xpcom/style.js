@@ -242,32 +242,42 @@ Zotero.Styles = new function() {
 	 *     containing the style data
 	 * @param {String} origin The origin of the style, either a filename or URL, to be
 	 *     displayed in dialogs referencing the style
+	 * @param {Boolean} [silent=false] Skip prompts
 	 */
-	this.install = Zotero.Promise.coroutine(function* (style, origin) {
-		var styleInstalled;
+	this.install = Zotero.Promise.coroutine(function* (style, origin, silent=false) {
+		var styleTitle;
 		
-		if(style instanceof Components.interfaces.nsIFile) {
-			// handle nsIFiles
-			var url = Services.io.newFileURI(style);
-			styleInstalled = Zotero.HTTP.promise("GET", url.spec).when(function(xmlhttp) {
-				return _install(xmlhttp.responseText, style.leafName);
-			});
-		} else {
-			styleInstalled = _install(style, origin);
+		try {
+			if (style instanceof Components.interfaces.nsIFile) {
+				// handle nsIFiles
+				var url = Services.io.newFileURI(style);
+				var xmlhttp = yield Zotero.HTTP.request("GET", url.spec);
+				styleTitle = yield _install(xmlhttp.responseText, style.leafName, false, silent);
+			} else {
+				styleTitle = yield _install(style, origin, false, silent);
+			}
 		}
-		
-		styleInstalled.catch(function(error) {
+		catch (error) {
 			// Unless user cancelled, show an alert with the error
 			if(typeof error === "object" && error instanceof Zotero.Exception.UserCancelled) return;
 			if(typeof error === "object" && error instanceof Zotero.Exception.Alert) {
-				error.present();
-				error.log();
+				Zotero.logError(error);
+				if (silent) {
+					throw error;
+				} else {
+					error.present();
+				}
 			} else {
 				Zotero.logError(error);
-				(new Zotero.Exception.Alert("styles.install.unexpectedError",
-					origin, "styles.install.title", error)).present();
+				if (silent) {
+					throw error
+				} else {
+					(new Zotero.Exception.Alert("styles.install.unexpectedError",
+						origin, "styles.install.title", error)).present();
+				}
 			}
-		}).done();
+		}
+		return styleTitle;
 	});
 	
 	/**
@@ -276,19 +286,20 @@ Zotero.Styles = new function() {
 	 * @param {String} origin The origin of the style, either a filename or URL, to be
 	 *     displayed in dialogs referencing the style
 	 * @param {Boolean} [hidden] Whether style is to be hidden.
+	 * @param {Boolean} [silent=false] Skip prompts
 	 * @return {Promise}
 	 */
-	var _install = Zotero.Promise.coroutine(function* (style, origin, hidden) {
+	var _install = Zotero.Promise.coroutine(function* (style, origin, hidden, silent=false) {
 		if (!_initialized) yield Zotero.Styles.init();
 		
-		var existingFile, destFile, source, styleID
+		var existingFile, destFile, source;
 		
 		// First, parse style and make sure it's valid XML
 		var parser = Components.classes["@mozilla.org/xmlextras/domparser;1"]
 				.createInstance(Components.interfaces.nsIDOMParser),
 			doc = parser.parseFromString(style, "application/xml");
 		
-		styleID = Zotero.Utilities.xpathText(doc, '/csl:style/csl:info[1]/csl:id[1]',
+		var styleID = Zotero.Utilities.xpathText(doc, '/csl:style/csl:info[1]/csl:id[1]',
 				Zotero.Styles.ns),
 			// Get file name from URL
 			m = /[^\/]+$/.exec(styleID),
@@ -361,7 +372,7 @@ Zotero.Styles = new function() {
 		// display a dialog to tell the user we're about to install the style
 		if(hidden) {
 			destFile = destFileHidden;
-		} else {
+		} else if (!silent) {
 			if(existingTitle) {
 				var text = Zotero.getString('styles.updateStyle', [existingTitle, title, origin]);
 			} else {
@@ -448,6 +459,7 @@ Zotero.Styles = new function() {
 				yield win.Zotero_Preferences.Cite.refreshStylesList(styleID);
 			}
 		}
+		return existingTitle || title;
 	});
 	
 	/**

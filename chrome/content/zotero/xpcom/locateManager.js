@@ -166,7 +166,7 @@ Zotero.LocateManager = new function() {
 	 * Gets the dir containing the JSON file and engine icons
 	 */
 	function _getLocateDirectory() {
-		var locateDir = Zotero.getZoteroDirectory();
+		var locateDir = Zotero.File.pathToFile(Zotero.DataDirectory.dir);
 		locateDir.append(LOCATE_DIR_NAME);
 		return locateDir;
 	}
@@ -428,9 +428,9 @@ Zotero.LocateManager = new function() {
 			if(responseType && responseType !== "text/html") {
 				throw "LocateManager supports only responseType text/html";
 			}
-		
-			if(item.toArray) {
-				item = item.toArray();
+			
+			if (item.toJSON) {
+				item = item.toJSON();
 			}
 			
 			var itemAsOpenURL = Zotero.OpenURL.createContextObject(item, "1.0", true);

@@ -474,7 +474,6 @@ function getTestDataUrl(path) {
 
 /**
  * Returns an absolute path to an empty temporary directory
- * (i.e., test/tests/data)
  */
 var getTempDirectory = Zotero.Promise.coroutine(function* getTempDirectory() {
 	Components.utils.import("resource://gre/modules/osfile.jsm");
@@ -494,6 +493,16 @@ var getTempDirectory = Zotero.Promise.coroutine(function* getTempDirectory() {
 	return path;
 });
 
+var removeDir = Zotero.Promise.coroutine(function* (dir) {
+	// OS.File.DirectoryIterator, used by OS.File.removeDir(), isn't reliable on Travis,
+	// returning entry.isDir == false for subdirectories, so use nsIFile instead
+	//yield OS.File.removeDir(zipDir);
+	dir = Zotero.File.pathToFile(dir);
+	if (dir.exists()) {
+		dir.remove(true);
+	}
+});
+
 /**
  * Resets the Zotero DB and restarts Zotero. Returns a promise resolved
  * when this finishes.
@@ -502,16 +511,24 @@ var getTempDirectory = Zotero.Promise.coroutine(function* getTempDirectory() {
  *                             any that were set at startup
  */
 function resetDB(options = {}) {
-	Zotero.Prefs.clear('lastViewedFolder')
+	// Hack to avoid CustomizableUI warnings in console from icon.js
+	var toolbarIconAdded = Zotero.toolbarIconAdded;
+	resetPrefs();
 	
 	if (options.thisArg) {
 		options.thisArg.timeout(60000);
 	}
-	var db = Zotero.getZoteroDatabase();
-	return Zotero.reinit(function() {
-		db.remove(false);
-		_defaultGroup = null;
-	}, false, options).then(function() {
+	var db = Zotero.DataDirectory.getDatabase();
+	return Zotero.reinit(
+		Zotero.Promise.coroutine(function* () {
+			yield OS.File.remove(db);
+			_defaultGroup = null;
+		}),
+		false,
+		options
+	)
+	.then(() => {
+		Zotero.toolbarIconAdded = toolbarIconAdded;
 		return Zotero.Schema.schemaUpdatePromise;
 	});
 }

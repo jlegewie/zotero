@@ -1116,6 +1116,7 @@ Zotero.ItemTreeView.prototype.getImageSrc = function(row, col)
 		}
 		
 		var itemID = item.id;
+		let suffix = Zotero.hiDPISuffix;
 		
 		if (treerow.level === 0) {
 			if (item.isRegularItem()) {
@@ -1123,10 +1124,10 @@ Zotero.ItemTreeView.prototype.getImageSrc = function(row, col)
 				if (state !== null) {
 					switch (state) {
 						case 1:
-							return "chrome://zotero/skin/bullet_blue.png";
+							return `chrome://zotero/skin/bullet_blue${suffix}.png`;
 						
 						case -1:
-							return "chrome://zotero/skin/bullet_blue_empty.png";
+							return `chrome://zotero/skin/bullet_blue_empty${suffix}.png`;
 						
 						default:
 							return "";
@@ -1145,7 +1146,6 @@ Zotero.ItemTreeView.prototype.getImageSrc = function(row, col)
 		if (item.isFileAttachment()) {
 			let exists = item.fileExistsCached();
 			if (exists !== null) {
-				let suffix = Zotero.hiDPISuffix;
 				return exists
 					? `chrome://zotero/skin/bullet_blue${suffix}.png`
 					: `chrome://zotero/skin/bullet_blue_empty${suffix}.png`;
@@ -1310,9 +1310,23 @@ Zotero.ItemTreeView.prototype.isSorted = function()
 	return true;
 }
 
-Zotero.ItemTreeView.prototype.cycleHeader = function (column) {
+Zotero.ItemTreeView.prototype.cycleHeader = Zotero.Promise.coroutine(function* (column) {
 	if (this.collectionTreeRow.isFeed()) {
 		return;
+	}
+	if (column.id == 'zotero-items-column-hasAttachment') {
+		Zotero.debug("Caching best attachment states");
+		if (!this._cachedBestAttachmentStates) {
+			let t = new Date();
+			for (let i = 0; i < this._rows.length; i++) {
+				let item = this.getRow(i).ref;
+				if (item.isRegularItem()) {
+					yield item.getBestAttachmentState();
+				}
+			}
+			Zotero.debug("Cached best attachment states in " + (new Date - t) + " ms");
+			this._cachedBestAttachmentStates = true;
+		}
 	}
 	for(var i=0, len=this._treebox.columns.count; i<len; i++)
 	{
@@ -1353,7 +1367,7 @@ Zotero.ItemTreeView.prototype.cycleHeader = function (column) {
 	}
 	this._treebox.invalidate();
 	this.selection.selectEventsSuppressed = false;
-}
+});
 
 /*
  *  Sort the items by the currently sorted column.
@@ -1416,20 +1430,23 @@ Zotero.ItemTreeView.prototype.sort = function (itemID) {
 				return Zotero.Items.getSortTitle(item.getDisplayTitle());
 			
 			case 'hasAttachment':
-				if (item.isAttachment()) {
+				if (item.isFileAttachment()) {
 					var state = item.fileExistsCached() ? 1 : -1;
 				}
 				else if (item.isRegularItem()) {
-					var state = item.getBestAttachmentState();
+					var state = item.getBestAttachmentStateCached();
 				}
 				else {
 					return 0;
 				}
 				// Make sort order present, missing, empty when ascending
-				if (state === -1) {
+				if (state === 1) {
 					state = 2;
 				}
-				return state * -1;
+				else if (state === -1) {
+					state = 1;
+				}
+				return state;
 			
 			case 'numNotes':
 				return row.numNotes(false, true) || 0;
@@ -1490,6 +1507,10 @@ Zotero.ItemTreeView.prototype.sort = function (itemID) {
 				if (!emptyFirst[sortField]) {
 					if(fieldA === '' && fieldB !== '') return 1;
 					if(fieldA !== '' && fieldB === '') return -1;
+				}
+				
+				if (sortField == 'hasAttachment') {
+					return fieldB - fieldA;
 				}
 				
 				return collation.compareString(1, fieldA, fieldB);
@@ -2485,47 +2506,49 @@ Zotero.ItemTreeView.prototype.onDragStart = function (event) {
 	
 	var items = Zotero.Items.get(itemIDs);
 	
-	// Multi-file drag
-	//  - Doesn't work on Windows
-	if (!Zotero.isWin) {
-		// If at least one file is a non-web-link attachment and can be found,
-		// enable dragging to file system
-		for (var i=0; i<items.length; i++) {
-			if (items[i].isAttachment()
-					&& items[i].attachmentLinkMode
-						!= Zotero.Attachments.LINK_MODE_LINKED_URL
-					&& items[i].getFile()) {
-				Zotero.debug("Adding file via x-moz-file-promise");
-				event.dataTransfer.mozSetDataAt(
-					"application/x-moz-file-promise",
-					new Zotero.ItemTreeView.fileDragDataProvider(itemIDs),
-					0
-				);
-				break;
-			}
+	// If at least one file is a non-web-link attachment and can be found,
+	// enable dragging to file system
+	var files = items
+		.filter(item => item.isAttachment())
+		.map(item => item.getFilePath())
+		.filter(path => path);
+	
+	if (files.length) {
+		// Advanced multi-file drag (with unique filenames, which otherwise happen automatically on
+		// Windows but not Linux) and auxiliary snapshot file copying on macOS
+		let dataProvider;
+		if (Zotero.isMac) {
+			dataProvider = new Zotero.ItemTreeView.fileDragDataProvider(itemIDs);
 		}
-	}
-	// Copy first file on Windows
-	else {
-		var index = 0;
-		for (var i=0; i<items.length; i++) {
-			if (items[i].isAttachment() &&
-					items[i].getAttachmentLinkMode() != Zotero.Attachments.LINK_MODE_LINKED_URL) {
-				var file = items[i].getFile();
-				if (!file) {
-					continue;
-				}
-				
-				var fph = Components.classes["@mozilla.org/network/protocol;1?name=file"]
-							.createInstance(Components.interfaces.nsIFileProtocolHandler);
-				var uri = fph.getURLSpecFromFile(file);
-				
-				event.dataTransfer.mozSetDataAt("text/x-moz-url", uri + "\n" + file.leafName, index);
-				event.dataTransfer.mozSetDataAt("application/x-moz-file", file, index);
-				event.dataTransfer.mozSetDataAt("application/x-moz-file-promise-url", uri, index);
-				// DEBUG: possible to drag multiple files without x-moz-file-promise?
-				break;
-				index++
+		
+		for (let i = 0; i < files.length; i++) {
+			let file = Zotero.File.pathToFile(files[i]);
+			
+			if (dataProvider) {
+				Zotero.debug("Adding application/x-moz-file-promise");
+				event.dataTransfer.mozSetDataAt("application/x-moz-file-promise", dataProvider, i);
+			}
+			
+			// Allow dragging to filesystem on Linux and Windows
+			let uri;
+			if (!Zotero.isMac) {
+				Zotero.debug("Adding text/x-moz-url " + i);
+				let fph = Components.classes["@mozilla.org/network/protocol;1?name=file"]
+					.createInstance(Components.interfaces.nsIFileProtocolHandler);
+				uri = fph.getURLSpecFromFile(file);
+				event.dataTransfer.mozSetDataAt("text/x-moz-url", uri + '\n' + file.leafName, i);
+			}
+			
+			// Allow dragging to web targets (e.g., Gmail)
+			Zotero.debug("Adding application/x-moz-file " + i);
+			event.dataTransfer.mozSetDataAt("application/x-moz-file", file, i);
+			
+			if (Zotero.isWin) {
+				event.dataTransfer.mozSetDataAt("application/x-moz-file-promise-url", uri, i);
+			}
+			else if (Zotero.isLinux) {
+				// Don't create a symlink for an unmodified drag
+				event.dataTransfer.effectAllowed = 'copy';
 			}
 		}
 	}
@@ -2589,6 +2612,7 @@ Zotero.ItemTreeView.fileDragDataProvider.prototype = {
 	},
 	
 	getFlavorData : function(transferable, flavor, data, dataLen) {
+		Zotero.debug("Getting flavor data for " + flavor);
 		if (flavor == "application/x-moz-file-promise") {
 			// On platforms other than OS X, the only directory we know of here
 			// is the system temp directory, and we pass the nsIFile of the file

@@ -29,6 +29,7 @@
  * @constructor
  * @param {Object} options
  *         <li>libraryID - ID of library in which items should be saved</li>
+ *         <li>collections - New collections to create (used during Import translation</li>
  *         <li>attachmentMode - One of Zotero.Translate.ItemSaver.ATTACHMENT_* specifying how attachments should be saved</li>
  *         <li>forceTagType - Force tags to specified tag type</li>
  *         <li>cookieSandbox - Cookie sandbox for attachment requests</li>
@@ -48,7 +49,7 @@ Zotero.Translate.ItemSaver = function(options) {
 	this._collections = options.collections || false;
 	
 	// If group filesEditable==false, don't save attachments
-	this.attachmentMode = Zotero.Libraries.isFilesEditable(this._libraryID) ? options.attachmentMode :
+	this.attachmentMode = Zotero.Libraries.get(this._libraryID).filesEditable ? options.attachmentMode :
 	                      Zotero.Translate.ItemSaver.ATTACHMENT_MODE_IGNORE;
 	this._forceTagType = options.forceTagType;
 	this._cookieSandbox = options.cookieSandbox;
@@ -728,15 +729,15 @@ Zotero.Translate.ItemGetter.prototype = {
 		var attachmentArray = Zotero.Utilities.Internal.itemToExportFormat(attachment, this.legacy);
 		var linkMode = attachment.attachmentLinkMode;
 		if(linkMode != Zotero.Attachments.LINK_MODE_LINKED_URL) {
-			var attachFile = attachment.getFile();
-			attachmentArray.localPath = attachFile.path;
+			attachmentArray.localPath = attachment.getFilePath();
 			
 			if(this._exportFileDirectory) {
 				var exportDir = this._exportFileDirectory;
 				
 				// Add path and filename if not an internet link
-				var attachFile = attachment.getFile();
-				if(attachFile) {
+				var attachFile = Zotero.File.pathToFile(attachmentArray.localPath);
+				// TODO: Make async, but that will require translator changes
+				if (attachFile.exists()) {
 					attachmentArray.defaultPath = "files/" + attachment.id + "/" + attachFile.leafName;
 					attachmentArray.filename = attachFile.leafName;
 					

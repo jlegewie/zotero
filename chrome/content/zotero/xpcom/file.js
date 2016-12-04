@@ -42,11 +42,16 @@ Zotero.File = new function(){
 	
 	
 	this.pathToFile = function (pathOrFile) {
-		if (typeof pathOrFile == 'string') {
-			return new FileUtils.File(pathOrFile);
+		try {
+			if (typeof pathOrFile == 'string') {
+				return new FileUtils.File(pathOrFile);
+			}
+			else if (pathOrFile instanceof Ci.nsIFile) {
+				return pathOrFile;
+			}
 		}
-		else if (pathOrFile instanceof Ci.nsIFile) {
-			return pathOrFile;
+		catch (e) {
+			Zotero.logError(e);
 		}
 		throw new Error("Unexpected value '" + pathOrFile + "'");
 	}
@@ -433,10 +438,31 @@ Zotero.File = new function(){
 	
 	
 	/**
+	 * @return {Promise<Boolean>}
+	 */
+	this.directoryIsEmpty = Zotero.Promise.coroutine(function* (path) {
+		var it = new OS.File.DirectoryIterator(path);
+		try {
+			let entry = yield it.next();
+			return false;
+		}
+		catch (e) {
+			if (e != StopIteration) {
+				throw e;
+			}
+		}
+		finally {
+			it.close();
+		}
+		return true;
+	});
+	
+	
+	/**
 	 * Run a generator with an OS.File.DirectoryIterator, closing the
 	 * iterator when done
 	 *
-	 * The DirectoryInterator is passed as the first parameter to the generator.
+	 * The DirectoryIterator is passed as the first parameter to the generator.
 	 *
 	 * Zotero.File.iterateDirectory(path, function* (iterator) {
 	 *    while (true) {
@@ -459,6 +485,150 @@ Zotero.File = new function(){
 			iterator.close();
 		});
 	}
+	
+	
+	/**
+	 * If directories can be moved at once, instead of recursively creating directories and moving files
+	 *
+	 * Currently this means using /bin/mv, which only works on macOS and Linux
+	 */
+	this.canMoveDirectoryAtomic = Zotero.lazy(function () {
+		var cmd = "/bin/mv";
+		return !Zotero.isWin && this.pathToFile(cmd).exists();
+	});
+	
+	/**
+	 * Move directory (using mv on macOS/Linux, recursively on Windows)
+	 *
+	 * @param {Boolean} [options.allowExistingTarget=false] - If true, merge files into an existing
+	 *     target directory if one exists rather than throwing an error
+	 * @param {Function} options.noOverwrite - Function that returns true if the file at the given
+	 *     path should throw an error rather than overwrite an existing file in the target
+	 */
+	this.moveDirectory = Zotero.Promise.coroutine(function* (oldDir, newDir, options = {}) {
+		var maxDepth = options.maxDepth || 10;
+		var cmd = "/bin/mv";
+		var useCmd = this.canMoveDirectoryAtomic();
+		
+		if (!options.allowExistingTarget && (yield OS.File.exists(newDir))) {
+			throw new Error(newDir + " exists");
+		}
+		
+		var errors = [];
+		
+		// Throw certain known errors (no more disk space) to interrupt the operation
+		function checkError(e) {
+			if (!(e instanceof OS.File.Error)) {
+				return;
+			}
+			
+			if (!Zotero.isWin) {
+				switch (e.unixErrno) {
+				case OS.Constants.libc.ENOSPC:
+					throw e;
+				}
+			}
+		}
+		
+		function addError(e) {
+			errors.push(e);
+			Zotero.logError(e);
+		}
+		
+		var rootDir = oldDir;
+		var moveSubdirs = Zotero.Promise.coroutine(function* (oldDir, depth) {
+			if (!depth) return;
+			
+			// Create target directory
+			try {
+				yield Zotero.File.createDirectoryIfMissingAsync(newDir + oldDir.substr(rootDir.length));
+			}
+			catch (e) {
+				addError(e);
+				return;
+			}
+			
+			Zotero.debug("Moving files in " + oldDir);
+			
+			yield Zotero.File.iterateDirectory(oldDir, function* (iterator) {
+				while (true) {
+					let entry = yield iterator.next();
+					let dest = newDir + entry.path.substr(rootDir.length);
+					
+					// entry.isDir can be false for some reason on Travis, causing spurious test failures
+					if (Zotero.automatedTest && !entry.isDir && (yield OS.File.stat(entry.path)).isDir) {
+						Zotero.debug("Overriding isDir for " + entry.path);
+						entry.isDir = true;
+					}
+					
+					// Move files in directory
+					if (!entry.isDir) {
+						try {
+							yield OS.File.move(
+								entry.path,
+								dest,
+								{
+									noOverwrite: options
+										&& options.noOverwrite
+										&& options.noOverwrite(entry.path)
+								}
+							);
+						}
+						catch (e) {
+							checkError(e);
+							Zotero.debug("Error moving " + entry.path);
+							addError(e);
+						}
+					}
+					else {
+						// Move directory with external command if possible and the directory doesn't
+						// already exist in target
+						let moved = false;
+						
+						if (useCmd && !(yield OS.File.exists(dest))) {
+							let args = [entry.path, dest];
+							try {
+								yield Zotero.Utilities.Internal.exec(cmd, args);
+								moved = true;
+							}
+							catch (e) {
+								checkError(e);
+								addError(e);
+							}
+						}
+						
+						// Otherwise, recurse into subdirectories to copy files individually
+						if (!moved) {
+							try {
+								yield moveSubdirs(entry.path, depth - 1);
+							}
+							catch (e) {
+								checkError(e);
+								addError(e);
+							}
+						}
+					}
+				}
+			});
+			
+			// Remove directory after moving everything within
+			//
+			// Don't try to remove root directory if there've been errors, since it won't work.
+			// (Deeper directories might fail too, but we don't worry about those.)
+			if (!errors.length || oldDir != rootDir) {
+				Zotero.debug("Removing " + oldDir);
+				try {
+					yield OS.File.removeEmptyDir(oldDir);
+				}
+				catch (e) {
+					addError(e);
+				}
+			}
+		});
+		
+		yield moveSubdirs(oldDir, maxDepth);
+		return errors;
+	});
 	
 	
 	/**
@@ -1054,4 +1224,42 @@ Zotero.File = new function(){
 	this.isDropboxDirectory = function(path) {
 		return path.toLowerCase().indexOf('dropbox') != -1;
 	}
+	
+	
+	this.reveal = Zotero.Promise.coroutine(function* (file) {
+		if (!(yield OS.File.exists(file))) {
+			throw new Error(file + " does not exist");
+		}
+		
+		Zotero.debug("Revealing " + file);
+		
+		var nsIFile = this.pathToFile(file);
+		nsIFile.QueryInterface(Components.interfaces.nsILocalFile);
+		try {
+			nsIFile.reveal();
+		}
+		catch (e) {
+			Zotero.logError(e);
+			// On platforms that don't support nsILocalFile.reveal() (e.g. Linux),
+			// launch the directory
+			let zp = Zotero.getActiveZoteroPane();
+			if (zp) {
+				try {
+					let info = yield OS.File.stat(file);
+					// Launch parent directory for files
+					if (!info.isDir) {
+						file = OS.Path.dirname(file);
+					}
+					Zotero.launchFile(file);
+				}
+				catch (e) {
+					Zotero.logError(e);
+					return;
+				}
+			}
+			else {
+				Zotero.logError(e);
+			}
+		}
+	});
 }

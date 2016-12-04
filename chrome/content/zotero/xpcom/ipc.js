@@ -66,7 +66,7 @@ Zotero.IPC = new function() {
 				// Standalone sends this to the Firefox extension to tell the Firefox extension to
 				// release its lock on the Zotero database
 				if(!Zotero.isConnector && (msg.length === 11 ||
-					                       msg.substr(12) === Zotero.getZoteroDatabase().persistentDescriptor)) {
+						msg.substr(12) === Zotero.DataDirectory.getDatabase())) {
 					switchConnectorMode(true);
 				}
 			} else if(msg === "lockReleased") {
@@ -92,6 +92,11 @@ Zotero.IPC = new function() {
 				// know that Standalone has fully initialized and it should pull the list of
 				// translators
 				Zotero.initComplete();
+			}
+			else if (msg == "reinit") {
+				if (Zotero.isConnector) {
+					reinit(false, true);
+				}
 			}
 		}
 	}
@@ -279,10 +284,15 @@ Zotero.IPC = new function() {
 	 * Get directory containing Zotero pipes
 	 */
 	function _getPipeDirectory() {
-		var dir = Zotero.getZoteroDirectory();
+		var dir = Zotero.File.pathToFile(Zotero.DataDirectory.dir);
 		dir.append("pipes");
 		return dir;
 	}
+	
+	this.pipeExists = Zotero.Promise.coroutine(function* () {
+		var dir = _getPipeDirectory().path;
+		return (yield OS.File.exists(dir)) && !(yield Zotero.File.directoryIsEmpty(dir));
+	});
 	
 	/**
 	 * Gets the path to libc as a string

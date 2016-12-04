@@ -221,7 +221,14 @@ describe("ZoteroPane", function() {
 				}
 			);
 			
+			// Disable loadURI() so viewAttachment() doesn't trigger translator loading
+			var stub = sinon.stub(zp, "loadURI");
+			
 			yield zp.viewAttachment(item.id);
+			
+			assert.ok(stub.calledOnce);
+			assert.ok(stub.calledWith(OS.Path.toFileURI(item.getFilePath())));
+			stub.restore();
 			
 			assert.equal((yield item.attachmentHash), md5);
 			assert.equal((yield item.attachmentModificationTime), mtime);
@@ -396,6 +403,23 @@ describe("ZoteroPane", function() {
 	describe("#editSelectedCollection()", function () {
 		it("should edit a saved search", function* () {
 			var search = yield createDataObject('search');
+			var promise = waitForWindow('chrome://zotero/content/searchDialog.xul', function (win) {
+				let searchBox = win.document.getElementById('search-box');
+				var c = searchBox.search.getCondition(
+					searchBox.search.addCondition("title", "contains", "foo")
+				);
+				searchBox.addCondition(c);
+				win.document.documentElement.acceptDialog();
+			});
+			yield zp.editSelectedCollection();
+			yield promise;
+			var conditions = search.getConditions();
+			assert.lengthOf(Object.keys(conditions), 3);
+		});
+		
+		it("should edit a saved search in a group", function* () {
+			var group = yield getGroup();
+			var search = yield createDataObject('search', { libraryID: group.libraryID });
 			var promise = waitForWindow('chrome://zotero/content/searchDialog.xul', function (win) {
 				let searchBox = win.document.getElementById('search-box');
 				var c = searchBox.search.getCondition(

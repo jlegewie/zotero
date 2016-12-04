@@ -72,7 +72,7 @@ Zotero.Schema = new function(){
 	/*
 	 * Checks if the DB schema exists and is up-to-date, updating if necessary
 	 */
-	this.updateSchema = Zotero.Promise.coroutine(function* () {
+	this.updateSchema = Zotero.Promise.coroutine(function* (options = {}) {
 		// TODO: Check database integrity first with Zotero.DB.integrityCheck()
 		
 		// 'userdata' is the last upgrade step run in _migrateUserDataSchema() based on the
@@ -88,7 +88,7 @@ Zotero.Schema = new function(){
 			Zotero.debug('Database does not exist -- creating\n');
 			return _initializeSchema()
 			.then(function() {
-				Zotero.initializationPromise
+				(Zotero.isStandalone ? Zotero.uiReadyPromise : Zotero.initializationPromise)
 				.then(1000)
 				.then(function () {
 					return Zotero.Schema.updateBundledFiles();
@@ -133,7 +133,7 @@ Zotero.Schema = new function(){
 				if (Zotero.DB.tableExists('customItemTypes')) {
 					yield _updateCustomTables(updated);
 				}
-				updated = yield _migrateUserDataSchema(userdata);
+				updated = yield _migrateUserDataSchema(userdata, options);
 				yield _updateSchema('triggers');
 				
 				// Populate combined tables for custom types and fields -- this is likely temporary
@@ -151,7 +151,7 @@ Zotero.Schema = new function(){
 		if (updated) {
 			// Upgrade seems to have been a success -- delete any previous backups
 			var maxPrevious = userdata - 1;
-			var file = Zotero.getZoteroDirectory();
+			var file = Zotero.File.pathToFile(Zotero.DataDirectory.dir);
 			var toDelete = [];
 			try {
 				var files = file.directoryEntries;
@@ -182,7 +182,9 @@ Zotero.Schema = new function(){
 		// Reset sync queue tries if new version
 		yield _checkClientVersion();
 		
-		Zotero.initializationPromise
+		// In Standalone, don't load bundled files until after UI is ready. In Firefox, load them as
+		// soon initialization is done so that translation works before the Zotero pane is opened.
+		(Zotero.isStandalone ? Zotero.uiReadyPromise : Zotero.initializationPromise)
 		.then(1000)
 		.then(function () {
 			return Zotero.Schema.updateBundledFiles();
@@ -462,20 +464,22 @@ Zotero.Schema = new function(){
 			}
 			installLocation = installLocation.path;
 			
+			let reinitOptions = { fromSchemaUpdate: true, noReinit: true };
+			
 			// Update files
 			switch (mode) {
 			case 'styles':
-				yield Zotero.Styles.init();
+				yield Zotero.Styles.reinit(reinitOptions);
 				var updated = yield _updateBundledFilesAtLocation(installLocation, mode);
 			
 			case 'translators':
-				yield Zotero.Translators.init();
+				yield Zotero.Translators.reinit(reinitOptions);
 				var updated = yield _updateBundledFilesAtLocation(installLocation, mode);
 			
 			default:
-				yield Zotero.Translators.init();
+				yield Zotero.Translators.reinit(reinitOptions);
 				let up1 = yield _updateBundledFilesAtLocation(installLocation, 'translators', true);
-				yield Zotero.Styles.init();
+				yield Zotero.Styles.reinit(reinitOptions);
 				let up2 = yield _updateBundledFilesAtLocation(installLocation, 'styles');
 				var updated = up1 || up2;
 			}
@@ -751,7 +755,7 @@ Zotero.Schema = new function(){
 					catch (e) {
 						if (e instanceof OS.File.Error && e.becauseExists) {
 							// Could overwrite automatically, but we want to log this
-							let msg = "Overwriting translator with same filename '" + fileName + "'";
+							let msg = "Overwriting translator with same filename '" + entry.fileName + "'";
 							Zotero.debug(msg, 1);
 							Components.utils.reportError(msg);
 							yield OS.File.move(tmpFile, destFile);
@@ -952,7 +956,8 @@ Zotero.Schema = new function(){
 		});
 		
 		yield Zotero[Mode].reinit({
-			metadataCache: cache
+			metadataCache: cache,
+			fromSchemaUpdate: true
 		});
 		
 		return true;
@@ -1659,8 +1664,8 @@ Zotero.Schema = new function(){
 				}
 				
 				// Rebuild caches
-				yield Zotero.Translators.reinit();
-				yield Zotero.Styles.reinit();
+				yield Zotero.Translators.reinit({ fromSchemaUpdate: true });
+				yield Zotero.Styles.reinit({ fromSchemaUpdate: true });
 			}
 			catch (e) {
 				Zotero.debug(e, 1);
@@ -1856,7 +1861,7 @@ Zotero.Schema = new function(){
 	//
 	// If libraryID set, make sure no relations still use a local user key, and then remove on-error code in sync.js
 	
-	var _migrateUserDataSchema = Zotero.Promise.coroutine(function* (fromVersion) {
+	var _migrateUserDataSchema = Zotero.Promise.coroutine(function* (fromVersion, options = {}) {
 		var toVersion = yield _getSchemaSQLVersion('userdata');
 		
 		if (fromVersion >= toVersion) {
@@ -1864,6 +1869,13 @@ Zotero.Schema = new function(){
 		}
 		
 		Zotero.debug('Updating user data tables from version ' + fromVersion + ' to ' + toVersion);
+		
+		if (options.onBeforeUpdate) {
+			let maybePromise = options.onBeforeUpdate()
+			if (maybePromise && maybePromise.then) {
+				yield maybePromise;
+			}
+		}
 		
 		Zotero.DB.requireTransaction();
 		
@@ -2046,6 +2058,12 @@ Zotero.Schema = new function(){
 				yield Zotero.DB.queryAsync("INSERT OR IGNORE INTO items SELECT itemID, itemTypeID, dateAdded, dateModified, clientDateModified, IFNULL(libraryID, 1), key, 0, 0 FROM itemsOld ORDER BY dateAdded DESC");
 				yield Zotero.DB.queryAsync("CREATE INDEX items_synced ON items(synced)");
 				
+				let rows = yield Zotero.DB.queryAsync("SELECT firstName, lastName, fieldMode, COUNT(*) FROM creatorData GROUP BY firstName, lastName, fieldMode HAVING COUNT(*) > 1");
+				for (let row of rows) {
+					let ids = yield Zotero.DB.columnQueryAsync("SELECT creatorDataID FROM creatorData WHERE firstName=? AND lastName=? AND fieldMode=?", [row.firstName, row.lastName, row.fieldMode]);
+					yield Zotero.DB.queryAsync("UPDATE creators SET creatorDataID=" + ids[0] + " WHERE creatorDataID IN (" + ids.slice(1).join(", ") + ")");
+				}
+				yield Zotero.DB.queryAsync("DELETE FROM creatorData WHERE creatorDataID NOT IN (SELECT creatorDataID FROM creators)");
 				yield Zotero.DB.queryAsync("ALTER TABLE creators RENAME TO creatorsOld");
 				yield Zotero.DB.queryAsync("CREATE TABLE creators (\n    creatorID INTEGER PRIMARY KEY,\n    firstName TEXT,\n    lastName TEXT,\n    fieldMode INT,\n    UNIQUE (lastName, firstName, fieldMode)\n)");
 				yield Zotero.DB.queryAsync("INSERT INTO creators SELECT creatorDataID, firstName, lastName, fieldMode FROM creatorData");
@@ -2275,7 +2293,7 @@ Zotero.Schema = new function(){
 				}
 			}
 			
-			else if (i == 88) {
+			else if (i == 89) {
 				let groupLibraryMap = {};
 				let libraryGroupMap = {};
 				let resolveLibrary = Zotero.Promise.coroutine(function* (usersOrGroups, id) {
@@ -2313,7 +2331,7 @@ Zotero.Schema = new function(){
 					
 					// Add missing bidirectional from 80
 					if (object.startsWith('users')) {
-						matches = object.match(/^users\/(local\/\w+\/|\d+)items\/([A-Z0-9]{8})$/);
+						matches = object.match(/^users\/(local\/\w+|\d+)\/items\/([A-Z0-9]{8})$/);
 						if (!matches) continue;
 						newSubjectlibraryID = 1;
 						newSubjectKey = matches[2];

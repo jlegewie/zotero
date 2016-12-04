@@ -22,9 +22,10 @@ describe("Zotero.Sync.Data.Local", function() {
 	
 	
 	describe("#checkUser()", function () {
-		var resetDataDirFile = OS.Path.join(Zotero.getZoteroDirectory().path, 'reset-data-directory');
+		var resetDataDirFile;
 		
 		before(function() {
+			resetDataDirFile = OS.Path.join(Zotero.DataDirectory.dir, 'reset-data-directory');
 			sinon.stub(Zotero.Utilities.Internal, 'quitZotero');
 		});	
 		
@@ -79,7 +80,7 @@ describe("Zotero.Sync.Data.Local", function() {
 		
 		// extra1 functionality not used at the moment
 		it.skip("should prompt for data reset and allow to choose a new data directory", function* (){
-			sinon.stub(Zotero, 'forceNewDataDirectory').returns(true);
+			sinon.stub(Zotero.DataDirectory, 'forceChange').returns(true);
 			yield Zotero.Users.setCurrentUserID(1);
 			yield Zotero.Users.setCurrentUsername("A");
 			
@@ -88,10 +89,10 @@ describe("Zotero.Sync.Data.Local", function() {
 			var cont = yield Zotero.Sync.Data.Local.checkUser(window, 2, "B");
 			var resetDataDirFileExists = yield OS.File.exists(resetDataDirFile);
 			assert.isTrue(cont);
-			assert.isTrue(Zotero.forceNewDataDirectory.called);
+			assert.isTrue(Zotero.DataDirectory.forceChange.called);
 			assert.isFalse(resetDataDirFileExists);
 			
-			Zotero.forceNewDataDirectory.restore();
+			Zotero.DataDirectory.forceChange.restore();
 		});
 	});
 	

@@ -24,7 +24,8 @@ function saveItemsThroughTranslator(translatorType, items) {
 	} else if (translatorType == "import") {
 		translate.setString("");
 	}
-	translate.setTranslator(buildDummyTranslator(translatorType == "web" ? 4 : 1,
+	translate.setTranslator(buildDummyTranslator(
+		translatorType,
 		"function detectWeb() {}\n"+
 		"function do"+tyname+"() {\n"+
 		"	var json = JSON.parse('"+JSON.stringify(items).replace(/['\\]/g, "\\$&")+"');\n"+
@@ -593,6 +594,31 @@ describe("Zotero.Translate", function() {
 			assert.deepEqual([{tag: 'owl'}, {tag: 'tag'}], items[0].getTags());
 			
 			Zotero.Translators.get.restore();
+		});
+	});
+	
+	describe("ItemSaver", function () {
+		describe("#saveItems()", function () {
+			it("should handle missing attachment files", function* () {
+				var item = yield importFileAttachment('test.png');
+				var path = item.getFilePath();
+				// Delete attachment file
+				yield OS.File.remove(path);
+				
+				var translation = new Zotero.Translate.Export();
+				var tmpDir = yield getTempDirectory();
+				var exportDir = OS.Path.join(tmpDir, 'export');
+				translation.setLocation(Zotero.File.pathToFile(exportDir));
+				translation.setItems([item]);
+				translation.setTranslator('14763d24-8ba0-45df-8f52-b8d1108e7ac9'); // Zotero RDF
+				translation.setDisplayOptions({
+					exportFileData: true
+				});
+				yield translation.translate();
+				
+				var exportFile = OS.Path.join(exportDir, 'export.rdf');
+				assert.isAbove((yield OS.File.stat(exportFile)).size, 0);
+			});
 		});
 	});
 });
