@@ -321,7 +321,8 @@ var createFeed = Zotero.Promise.coroutine(function* (props = {}) {
 	feed.description = props.description || "";
 	feed.url = props.url || 'http://www.' + Zotero.Utilities.randomString() + '.com/feed.rss';
 	feed.refreshInterval = props.refreshInterval || 12;
-	feed.cleanupAfter = props.cleanupAfter || 2;
+	feed.cleanupReadAfter = props.cleanupReadAfter || 2;
+	feed.cleanupUnreadAfter = props.cleanupUnreadAfter || 30;
 	yield feed.saveTx();
 	return feed;
 });
@@ -788,7 +789,7 @@ function buildDummyTranslator(translatorType, code, info={}) {
 		"lastUpdated":"0000-00-00 00:00:00",
 	}, info);
 	let translator = new Zotero.Translator(info);
-	translator.code = code;
+	translator.code = JSON.stringify(info) + "\n" + code;
 	return translator;
 }
 

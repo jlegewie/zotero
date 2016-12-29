@@ -1,7 +1,9 @@
-describe.skip("PDF Recognition", function() {
+describe("PDF Recognition", function() {
 	var win;
 	
 	before(function* () {
+		if (Zotero.automatedTest) this.skip(); // TODO: Mock services
+		
 		this.timeout(60000);
 		// Load Zotero pane and install PDF tools
 		yield Zotero.Promise.all([
@@ -21,7 +23,9 @@ describe.skip("PDF Recognition", function() {
 	});
 	
 	after(function() {
-		win.close();
+		if (win) {
+			win.close();
+		}
 	});
 
 	it("should recognize a PDF with a DOI within a collection", function* () {
@@ -52,8 +56,6 @@ describe.skip("PDF Recognition", function() {
 	});
 
 	it("should recognize a PDF without a DOI", function* () {
-		if (Zotero.automatedTest) this.skip(); // CAPTCHAs make this fail
-		
 		this.timeout(30000);
 		// Import the PDF
 		var testdir = getTestDataDirectory();
@@ -65,9 +67,20 @@ describe.skip("PDF Recognition", function() {
 		// Recognize the PDF
 		win.Zotero_RecognizePDF.recognizeSelected();
 
-		var ids = yield waitForItemEvent("add");
-		var item = Zotero.Items.get(ids[0]);
+		var addedIDs = yield waitForItemEvent("add");
+		var modifiedIDs = yield waitForItemEvent("modify");
+		assert.lengthOf(addedIDs, 1);
+		var item = Zotero.Items.get(addedIDs[0]);
 		assert.equal(item.getField("title"), "Scaling study of an improved fermion action on quenched lattices");
 		assert.equal(item.getField("libraryCatalog"), "Google Scholar");
+		assert.lengthOf(modifiedIDs, 2);
+		
+		yield Zotero.Promise.delay(0);
+		
+		var progressWindow = getWindows("chrome://zotero/content/pdfProgress.xul")[0];
+		assert.equal(
+			progressWindow.document.getElementById("label").value,
+			Zotero.getString("recognizePDF.complete.label")
+		);
 	});
 });

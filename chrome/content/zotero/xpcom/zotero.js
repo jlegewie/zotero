@@ -28,6 +28,9 @@ Components.utils.import("resource://zotero/config.js");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/osfile.jsm");
+Components.utils.import("resource://gre/modules/PluralForm.jsm");
+
+Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 
 /*
  * Core functions
@@ -39,7 +42,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	this.log = log;
 	this.logError = logError;
 	this.getErrors = getErrors;
-	this.getString = getString;
 	this.localeJoin = localeJoin;
 	this.setFontSize = setFontSize;
 	this.flattenArguments = flattenArguments;
@@ -72,7 +74,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	 * @property	{Boolean}	locked		Whether all Zotero panes are locked
 	 *										with an overlay
 	 */
-	this.__defineGetter__('locked', function () _locked);
+	this.__defineGetter__('locked', function () { return _locked; });
 	this.__defineSetter__('locked', function (lock) {
 		var wasLocked = _locked;
 		_locked = lock;
@@ -245,6 +247,9 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		
 		_localizedStringBundle = Services.strings.createBundle(
 			"chrome://zotero/locale/zotero.properties", appLocale);
+		// Fix logged error in PluralForm.jsm when numForms() is called before get(), as it is in
+		// getString() when a number is based
+		PluralForm.get(1, '1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16')
 		
 		// Also load the brand as appName
 		var brandBundle = Services.strings.createBundle(
@@ -310,7 +315,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 						Zotero.DataDirectory.choose();
 					}
 				}
-				_addToolbarIcon();
 				return;
 			}
 			// DEBUG: handle more startup errors
@@ -348,7 +352,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 				]);
 				Zotero.startupError = msg;
 				Zotero.logError(e);
-				_addToolbarIcon();
 				return false;
 			}
 			throw (e);
@@ -392,7 +395,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 			return _initFull()
 			.then(function (success) {
 				if (!success) {
-					_addToolbarIcon();
 					return false;
 				}
 				
@@ -416,8 +418,6 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		this.initializationDeferred.resolve();
 		
 		if(Zotero.isConnector) {
-			_addToolbarIcon();
-			
 			Zotero.Repo.init();
 			Zotero.locked = false;
 		}
@@ -623,7 +623,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 								Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
 									.getService(Components.interfaces.nsIWindowWatcher)
 									.openWindow(null, 'chrome://mozapps/content/update/updates.xul',
-										'updateChecker', 'chrome,centerscreen', null);
+										'updateChecker', 'chrome,centerscreen,modal', null);
 							} else {
 								// In Firefox, show the add-on manager
 								Components.utils.import("resource://gre/modules/AddonManager.jsm");
@@ -677,7 +677,8 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 					throw e;
 				}
 				
-				Zotero.startupError = Zotero.getString('startupError.databaseUpgradeError') + "\n\n" + e;
+				Zotero.startupError = Zotero.getString('startupError.databaseUpgradeError') + "\n\n"
+					+ (e.stack || e);
 				throw e;
 			}
 			
@@ -753,7 +754,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		catch (e) {
 			Zotero.logError(e);
 			if (!Zotero.startupError) {
-				Zotero.startupError = Zotero.getString('startupError') + "\n\n" + e;
+				Zotero.startupError = Zotero.getString('startupError') + "\n\n" + (e.stack || e);
 			}
 			return false;
 		}
@@ -790,7 +791,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 				var e = {
 					name: 'NS_ERROR_FILE_ACCESS_DENIED',
 					message: msg,
-					toString: function () this.message
+					toString: function () { return this.message; }
 				};
 				throw (e);
 			}
@@ -805,37 +806,12 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 			}
 			// Storage busy
 			else if (e.message.endsWith('2153971713')) {
-				if(Zotero.isStandalone) {
-					// Standalone should force Fx to release lock 
-					if(!haveReleasedLock && Zotero.IPC.broadcast("releaseLock")) {
-						_waitingForDBLock = true;
-						
-						var timeout = Date.now() + 5000; // 5 second timeout
-						while(_waitingForDBLock && !Zotero.closing && Date.now() < timeout) {
-							// AMO Reviewer: This is used by Zotero Standalone, not Zotero for Firefox.
-							Zotero.mainThread.processNextEvent(true);
-						}
-						if(Zotero.closing) return false;
-						
-						// Run a second init with haveReleasedLock = true, so that
-						// if we still can't acquire a DB lock, we will give up
-						return _initDB(true);
-					}
-				} else {
-					// Fx should start as connector if Standalone is running
-					var haveStandalone = Zotero.IPC.broadcast("test");
-					if(haveStandalone) {
-						throw "ZOTERO_SHOULD_START_AS_CONNECTOR";
-					}
-				}
-				
-				var msg = Zotero.localeJoin([
-					Zotero.getString('startupError.databaseInUse'),
-					Zotero.getString(Zotero.isStandalone ? 'startupError.closeFirefox' : 'startupError.closeStandalone')
-				]);
-				Zotero.startupError = msg;
+				Zotero.startupError = Zotero.getString('startupError.databaseInUse') + "\n\n"
+					+ Zotero.getString(
+						"startupError.close" + (Zotero.isStandalone ? 'Firefox' : 'Standalone')
+					);
 			} else {
-				Zotero.startupError = Zotero.getString('startupError') + "\n\n" + e;
+				Zotero.startupError = Zotero.getString('startupError') + "\n\n" + (e.stack || e);
 			}
 			
 			Zotero.debug(e.toString(), 1);
@@ -1102,7 +1078,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	function getErrors(asStrings) {
 		var errors = [];
 		
-		for each(var msg in _startupErrors.concat(_recentErrors)) {
+		for (let msg of _startupErrors.concat(_recentErrors)) {
 			// Remove password in malformed XML messages
 			if (msg.category == 'malformed-xml') {
 				try {
@@ -1179,9 +1155,17 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		return deferred.promise;
 	});
 	
-	function getString(name, params){
+	/**
+	 * @param {String} name
+	 * @param {String[]} [params=[]] - Strings to substitute for placeholders
+	 * @param {Number} [num] - Number (also appearing in `params`) to use when determining which plural
+	 *     form of the string to use; localized strings should include all forms in the order specified
+	 *     in https://developer.mozilla.org/en-US/docs/Mozilla/Localization/Localization_and_Plurals,
+	 *     separated by semicolons
+	 */
+	this.getString = function (name, params, num) {
 		try {
-			if (params != undefined){
+			if (params != undefined) {
 				if (typeof params != 'object'){
 					params = [params];
 				}
@@ -1189,6 +1173,18 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 			}
 			else {
 				var l10n = _localizedStringBundle.GetStringFromName(name);
+			}
+			if (num !== undefined) {
+				let availableForms = l10n.split(/;/);
+				// If not enough available forms, use last one -- PluralForm.get() uses first by
+				// default, but it's more likely that a localizer will translate the two English
+				// strings with some plural form as the second one, so we might as well use that
+				if (availableForms.length < PluralForm.numForms()) {
+					l10n = availableForms[availableForms.length - 1];
+				}
+				else {
+					l10n = PluralForm.get(num, l10n);
+				}
 			}
 		}
 		catch (e){
@@ -1420,7 +1416,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	
 	
 	function moveToUnique(file, newFile){
-		newFile.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0644);
+		newFile.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0o644);
 		var newName = newFile.leafName;
 		newFile.remove(null);
 		
@@ -1508,11 +1504,12 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 	/**
 	 * Show Zotero pane overlay and progress bar in all windows
 	 *
-	 * @param	{String}		msg
-	 * @param	{Boolean}		[determinate=false]
+	 * @param {String} msg
+	 * @param {Boolean} [determinate=false]
+	 * @param {Boolean} [modalOnly=false] - Don't use popup if Zotero pane isn't showing
 	 * @return	void
 	 */
-	this.showZoteroPaneProgressMeter = function (msg, determinate, icon) {
+	this.showZoteroPaneProgressMeter = function (msg, determinate, icon, modalOnly) {
 		// If msg is undefined, keep any existing message. If false/null/"", clear.
 		// The message is also cleared when the meters are hidden.
 		_progressMessage = msg = (msg === undefined ? _progressMessage : msg) || "";
@@ -1522,7 +1519,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		while (enumerator.hasMoreElements()) {
 			var win = enumerator.getNext();
 			if(!win.ZoteroPane) continue;
-			if(!win.ZoteroPane.isShowing()) {
+			if (!win.ZoteroPane.isShowing() && !modalOnly) {
 				if (win != currentWindow) {
 					continue;
 				}
@@ -1682,7 +1679,7 @@ Components.utils.import("resource://gre/modules/osfile.jsm");
 		if (button.length) {
 			button = button[0];
 			var menupopup = button.firstChild;
-			for each(var menuitem in menupopup.childNodes) {
+			for (let menuitem of menupopup.childNodes) {
 				if (menuitem.id.substr(prefixLen) == mode) {
 					menuitem.setAttribute('checked', true);
 					searchBox.placeholder = modes[mode].label;
@@ -2040,6 +2037,11 @@ Zotero.Prefs = new function(){
 				Zotero.Schema.stopRepositoryTimer();
 			}
 		}],
+		["fontSize", function (val) {
+			Zotero.setFontSize(
+				Zotero.getActiveZoteroPane().document.getElementById('zotero-pane')
+			);
+		}],
 		[ "layout", function(val) {
 			Zotero.getActiveZoteroPane().updateLayout();
 		}],
@@ -2172,7 +2174,7 @@ Zotero.Keys = new function() {
 		var cmds = Zotero.Prefs.prefBranch.getChildList('keys', {}, {});
 		
 		// Get the key=>command mappings from the prefs
-		for each(var cmd in cmds) {
+		for (let cmd of cmds) {
 			cmd = cmd.substr(5); // strips 'keys.'
 			// Remove old pref
 			if (cmd == 'overrideGlobal') {

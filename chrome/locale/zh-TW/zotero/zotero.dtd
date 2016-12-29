@@ -12,6 +12,7 @@
 <!ENTITY zotero.general.saveAs "另存新檔...">
 <!ENTITY zotero.general.advancedOptions.label "進階選項">
 <!ENTITY zotero.general.more "More">
+<!ENTITY zotero.general.loading "Loading…">
 
 <!ENTITY zotero.errorReport.title "Zotero 錯誤報告">
 <!ENTITY zotero.errorReport.unrelatedMessages "這可能包括無關於 Zotero 的訊息。">
@@ -271,8 +272,10 @@
 <!ENTITY zotero.feedSettings.title.label "Title:">
 <!ENTITY zotero.feedSettings.refresh.label1 "Update feed every">
 <!ENTITY zotero.feedSettings.refresh.label2 "hour(s)">
-<!ENTITY zotero.feedSettings.cleanupAfter.label1 "Remove read articles after ">
-<!ENTITY zotero.feedSettings.cleanupAfter.label2 "day(s)">
+<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label1 "Remove unread feed items after">
+<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label2 "day(s)">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label1 "Remove read feed items after">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label2 "day(s)">
 
 
 <!ENTITY zotero.recognizePDF.recognizing.label "取回屬性資料中…">

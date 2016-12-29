@@ -500,7 +500,7 @@ Zotero.Sync.Storage.Local = {
 	 * This is used when switching between storage modes in the preferences so that all existing files
 	 * are uploaded via the new mode if necessary.
 	 */
-	resetModeSyncStates: Zotero.Promise.coroutine(function* () {
+	resetAllSyncStates: Zotero.Promise.coroutine(function* () {
 		var sql = "SELECT itemID FROM items JOIN itemAttachments USING (itemID) "
 			+ "WHERE libraryID=? AND itemTypeID=? AND linkMode IN (?, ?)";
 		var params = [
@@ -514,7 +514,6 @@ Zotero.Sync.Storage.Local = {
 			let item = Zotero.Items.get(itemID);
 			item._attachmentSyncState = this.SYNC_STATE_TO_UPLOAD;
 		}
-		
 		sql = "UPDATE itemAttachments SET syncState=? WHERE itemID IN (" + sql + ")";
 		yield Zotero.DB.queryAsync(sql, [this.SYNC_STATE_TO_UPLOAD].concat(params));
 	}),
@@ -626,12 +625,7 @@ Zotero.Sync.Storage.Local = {
 			throw new Error("Downloaded file not found");
 		}
 		
-		var parentDirPath = Zotero.Attachments.getStorageDirectory(item).path;
-		if (!(yield OS.File.exists(parentDirPath))) {
-			yield Zotero.Attachments.createDirectoryForItem(item);
-		}
-		
-		yield this._deleteExistingAttachmentFiles(item);
+		yield Zotero.Attachments.createDirectoryForItem(item);
 		
 		var path = item.getFilePath();
 		if (!path) {
@@ -660,7 +654,7 @@ Zotero.Sync.Storage.Local = {
 			+ " into attachment directory as '" + fileName + "'");
 		try {
 			var finalFileName = Zotero.File.createShortened(
-				path, Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0644
+				path, Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0o644
 			);
 		}
 		catch (e) {
@@ -741,16 +735,12 @@ Zotero.Sync.Storage.Local = {
 		}
 		
 		var parentDir = Zotero.Attachments.getStorageDirectory(item).path;
-		if (!(yield OS.File.exists(parentDir))) {
-			yield Zotero.Attachments.createDirectoryForItem(item);
-		}
-		
 		try {
-			yield this._deleteExistingAttachmentFiles(item);
+			yield Zotero.Attachments.createDirectoryForItem(item);
 		}
 		catch (e) {
 			zipReader.close();
-			throw (e);
+			throw e;
 		}
 		
 		var returnFile = null;
@@ -831,7 +821,7 @@ Zotero.Sync.Storage.Local = {
 			let shortened;
 			try {
 				shortened = Zotero.File.createShortened(
-					destPath, Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0644
+					destPath, Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0o644
 				);
 			}
 			catch (e) {
@@ -903,17 +893,6 @@ Zotero.Sync.Storage.Local = {
 		zipFile.remove(false);
 		
 		return returnFile;
-	}),
-	
-	
-	_deleteExistingAttachmentFiles: Zotero.Promise.method(function (item) {
-		var parentDir = Zotero.Attachments.getStorageDirectory(item).path;
-		// OS.File.DirectoryIterator, used by OS.File.removeDir(), isn't reliable on Travis,
-		// returning entry.isDir == false for subdirectories, so use nsIFile instead
-		if (Zotero.automatedTest) {
-			Zotero.File.pathToFile(parentDir).remove(true);
-		}
-		return OS.File.removeDir(parentDir);
 	}),
 	
 	

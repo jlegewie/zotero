@@ -53,7 +53,7 @@
 			<field name="blurHandler"/>
 			<field name="eventHandlers">[]</field>
 			
-			<field name="_initialVisibleCreators">10</field>
+			<field name="_initialVisibleCreators">5</field>
 			<field name="_displayAllCreators"/>
 			
 			<!-- Modes are predefined settings groups for particular tasks -->
@@ -404,7 +404,7 @@
 						);
 						
 						var prefix = '';
-						// Add '(...)' before 'Abstract:' for collapsed abstracts
+						// Add '(...)' before 'Abstract' for collapsed abstracts
 						if (fieldName == 'abstractNote') {
 							if (val && !Zotero.Prefs.get('lastAbstractExpand')) {
 								prefix = '(\u2026) ';
@@ -413,7 +413,7 @@
 						
 						if (fieldName) {
 							label.setAttribute("value", prefix +
-								Zotero.ItemFields.getLocalizedString(this.item.itemTypeID, fieldName) + ":");
+								Zotero.ItemFields.getLocalizedString(this.item.itemTypeID, fieldName));
 						}
 						
 						// TEMP - NSF (homepage)
@@ -475,7 +475,7 @@
 							
 							var popup = button.appendChild(document.createElement("menupopup"));
 							
-							for each(var v in this._fieldAlternatives[fieldName]) {
+							for (let v of this._fieldAlternatives[fieldName]) {
 								var menuitem = document.createElement("menuitem");
 								var sv = Zotero.Utilities.ellipsize(v, 60);
 								menuitem.setAttribute('label', sv);
@@ -561,8 +561,8 @@
 					if (num > 0) {
 						// Limit number of creators display
 						var max = Math.min(num, this._initialVisibleCreators);
-						// If fewer than five more, just display
-						if (num < max + 5 || this._displayAllCreators) {
+						// If only 1 or 2 more, just display
+						if (num < max + 3 || this._displayAllCreators) {
 							max = num;
 						}
 						for (var i = 0; i < max; i++) {
@@ -748,7 +748,7 @@
 					
 					var label = document.createElement("label");
 					label.setAttribute('value',
-						Zotero.getString('creatorTypes.'+Zotero.CreatorTypes.getName(typeID)) + ":")
+						Zotero.getString('creatorTypes.' + Zotero.CreatorTypes.getName(typeID)));
 					typeBox.appendChild(label);
 					
 					var hbox = document.createElement("hbox");
@@ -884,7 +884,7 @@
 				<body>
 				<![CDATA[
 					var label = document.createElement("label");
-					label.setAttribute("value", Zotero.ItemFields.getLocalizedString(this.item.itemTypeID, field) + ':');
+					label.setAttribute("value", Zotero.ItemFields.getLocalizedString(this.item.itemTypeID, field));
 					label.setAttribute("fieldname", field);
 					label.setAttribute("onclick", "this.nextSibling.firstChild.blur()");
 					
@@ -1056,11 +1056,14 @@
 				<body>
 				<![CDATA[
 					// DEBUG: Valid nsIScrollBoxObject but methods return errors
-					return;
-					
-					var sbo = document.getAnonymousNodes(this)[0].boxObject;
-					sbo.QueryInterface(Components.interfaces.nsIScrollBoxObject);
-					sbo.scrollTo(0,0);
+					try {
+						var sbo = document.getAnonymousNodes(this)[0].boxObject;
+						sbo.QueryInterface(Components.interfaces.nsIScrollBoxObject);
+						sbo.scrollTo(0,0);
+					}
+					catch (e) {
+						Zotero.logError(e);
+					}
 				]]>
 				</body>
 			</method>
@@ -1183,8 +1186,8 @@
 					);
 					valueElement.parentNode.replaceChild(newValueElement, valueElement);
 					
-					var text = Zotero.ItemFields.getLocalizedString(this.item.itemTypeID, 'abstractNote') + ':';
-					// Add '(...)' before "Abstract:" for collapsed abstracts
+					var text = Zotero.ItemFields.getLocalizedString(this.item.itemTypeID, 'abstractNote');
+					// Add '(...)' before "Abstract" for collapsed abstracts
 					if (valueText && cur) {
 						text = '(\u2026) ' + text;
 					}
@@ -2370,7 +2373,7 @@
 								'value',
 								Zotero.getString(
 									'creatorTypes.' + Zotero.CreatorTypes.getName(typeID)
-								) + ':'
+								)
 							);
 							typeBox.setAttribute('typeid', typeID);
 							
@@ -2420,7 +2423,7 @@
 					</columns>
 					<rows id="dynamic-fields" flex="1">
 						<row class="zotero-item-first-row">
-							<label value="&zotero.items.itemType;:"/>
+							<label value="&zotero.items.itemType;"/>
 							<menulist class="zotero-clicky" id="item-type-menu" oncommand="document.getBindingParent(this).changeTypeTo(this.value, this)" flex="1"
 								onfocus="document.getBindingParent(this).ensureElementIsVisible(this)"
 								onkeypress="if (event.keyCode == event.DOM_VK_TAB) { document.getBindingParent(this).itemTypeMenuTab(event); }">

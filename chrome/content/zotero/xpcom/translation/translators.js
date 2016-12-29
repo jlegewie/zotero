@@ -25,9 +25,6 @@
 
 "use strict";
 
-// Enumeration of types of translators
-var TRANSLATOR_TYPES = {"import":1, "export":2, "web":4, "search":8};
-
 /**
  * Singleton to handle loading and caching of translators
  * @namespace
@@ -35,6 +32,7 @@ var TRANSLATOR_TYPES = {"import":1, "export":2, "web":4, "search":8};
 Zotero.Translators = new function() {
 	var _cache, _translators;
 	var _initialized = false;
+	var _initializationDeferred = false;
 	
 	/**
 	 * Initializes translator cache, loading all translator metadata into memory
@@ -42,18 +40,18 @@ Zotero.Translators = new function() {
 	 * @param {Object} [options.metadataCache] - Translator metadata keyed by filename, if already
 	 *     available (e.g., in updateBundledFiles()), to avoid unnecesary file reads
 	 */
-	this.reinit = Zotero.Promise.coroutine(function* (options = {}) {
+	this.init = Zotero.Promise.coroutine(function* (options = {}) {
+		if (_initializationDeferred && !options.reinit) {
+			return _initializationDeferred.promise;
+		}
+		
 		// Wait until bundled files have been updated, except when this is called by the schema update
 		// code itself
 		if (!options.fromSchemaUpdate) {
 			yield Zotero.Schema.schemaUpdatePromise;
 		}
-		// Before bundled files can be updated, any existing translators need to be loaded, but other
-		// init() calls from elsewhere should still wait on schemaUpdatePromise, so init()/lazy()
-		// can't be used. Instead, the schema update code calls reinit() with noReinit.
-		else if (options.noReinit && _initialized) {
-			return;
-		}
+		
+		_initializationDeferred = Zotero.Promise.defer();
 		
 		Zotero.debug("Initializing translators");
 		var start = new Date;
@@ -211,12 +209,18 @@ Zotero.Translators = new function() {
 			_cache[type].sort(cmp);
 		}
 		
+		_initializationDeferred.resolve();
 		_initialized = true;
 		
 		Zotero.debug("Cached " + numCached + " translators in " + ((new Date) - start) + " ms");
 	});
-	this.init = Zotero.lazy(this.reinit);
-
+	
+	
+	this.reinit = function (options = {}) {
+		return this.init(Object.assign({}, options, { reinit: true }));
+	};
+	
+	
 	/**
 	 * Loads a translator from JSON, with optional code
 	 *
@@ -290,10 +294,10 @@ Zotero.Translators = new function() {
 		
 		return this.getAllForType(type).then(function(allTranslators) {
 			var potentialTranslators = [];
-			var converterFunctions = [];
+			var proxies = [];
 			
-			var rootSearchURIs = this.getSearchURIs(rootURI);
-			var frameSearchURIs = isFrame ? this.getSearchURIs(URI) : rootSearchURIs;
+			var rootSearchURIs = Zotero.Proxies.getPotentialProxies(rootURI);
+			var frameSearchURIs = isFrame ? Zotero.Proxies.getPotentialProxies(URI) : rootSearchURIs;
 			
 			Zotero.debug("Translators: Looking for translators for "+Object.keys(frameSearchURIs).join(', '));
 			
@@ -309,7 +313,7 @@ Zotero.Translators = new function() {
 								
 							if (frameURIMatches) {
 								potentialTranslators.push(translator);
-								converterFunctions.push(frameSearchURIs[frameSearchURI]);
+								proxies.push(frameSearchURIs[frameSearchURI]);
 								// prevent adding the translator multiple times
 								break rootURIsLoop;
 							}
@@ -317,13 +321,13 @@ Zotero.Translators = new function() {
 					}
 					else if(!isFrame && (isGeneric || rootURIMatches)) {
 						potentialTranslators.push(translator);
-						converterFunctions.push(rootSearchURIs[rootSearchURI]);
+						proxies.push(rootSearchURIs[rootSearchURI]);
 						break;
 					}
 				}
 			}
 			
-			return [potentialTranslators, converterFunctions];
+			return [potentialTranslators, proxies];
 		}.bind(this));
 	},
 

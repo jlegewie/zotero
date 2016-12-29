@@ -11,7 +11,8 @@
 <!ENTITY zotero.general.refresh "Aktualisieren">
 <!ENTITY zotero.general.saveAs "Speichern als...">
 <!ENTITY zotero.general.advancedOptions.label "Erweiterte Einstellungen">
-<!ENTITY zotero.general.more "More">
+<!ENTITY zotero.general.more "Mehr">
+<!ENTITY zotero.general.loading "Loading…">
 
 <!ENTITY zotero.errorReport.title "Zotero Fehlerbericht">
 <!ENTITY zotero.errorReport.unrelatedMessages "Unter Umständen sind Nachrichten enthalten, die nicht mit Zotero in Verbindung stehen.">
@@ -271,8 +272,10 @@
 <!ENTITY zotero.feedSettings.title.label "Titel:">
 <!ENTITY zotero.feedSettings.refresh.label1 "Feed aktualisieren alle">
 <!ENTITY zotero.feedSettings.refresh.label2 "Stunde(n)">
-<!ENTITY zotero.feedSettings.cleanupAfter.label1 "Gelesene Artikel entfernen nach">
-<!ENTITY zotero.feedSettings.cleanupAfter.label2 "Tag(en)">
+<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label1 "Remove unread feed items after">
+<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label2 "day(s)">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label1 "Remove read feed items after">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label2 "day(s)">
 
 
 <!ENTITY zotero.recognizePDF.recognizing.label "Abruf der Metadaten...">

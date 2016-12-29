@@ -25,7 +25,6 @@ pref("extensions.zotero.triggerProxyAuthentication", true);
 // Proxy auth URLs should respond successfully to HEAD requests over HTTP and HTTPS (in case of forced HTTPS requests)
 pref("extensions.zotero.proxyAuthenticationURLs", 'http://www.acm.org,http://www.ebscohost.com,http://www.elsevier.com,http://www.ieee.org,http://www.jstor.org,http://www.ovid.com,http://www.springer.com,http://www.tandfonline.com');
 pref("extensions.zotero.cacheTranslatorData",true);
-pref("extensions.zotero.showIn", 1);
 pref("extensions.zotero.browserContentContextMenu", true);
 pref("extensions.zotero.openURL.resolver","http://worldcatlibraries.org/registry/gateway");
 pref("extensions.zotero.openURL.version","1.0");
@@ -54,7 +53,8 @@ pref("extensions.zotero.groups.copyTags", true);
 
 pref("extensions.zotero.feeds.sortAscending", false);
 pref("extensions.zotero.feeds.defaultTTL", 1);
-pref("extensions.zotero.feeds.defaultCleanupAfter", 2);
+pref("extensions.zotero.feeds.defaultCleanupReadAfter", 3);
+pref("extensions.zotero.feeds.defaultCleanupUnreadAfter", 30);
 
 pref("extensions.zotero.backup.numBackups", 2);
 pref("extensions.zotero.backup.interval", 1440);
@@ -96,7 +96,7 @@ pref("extensions.zotero.search.useLeftBound", true);
 
 // Notes
 pref("extensions.zotero.note.fontFamily", "Lucida Grande, Tahoma, Verdana, Helvetica, sans-serif");
-pref("extensions.zotero.note.fontSize", "11");
+pref("extensions.zotero.note.fontSize", "12");
 pref("extensions.zotero.note.css", "");
 
 // Reports

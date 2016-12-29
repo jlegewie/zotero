@@ -102,14 +102,14 @@ describe("Zotero.Sync.Storage.Local", function () {
 		})
 	})
 	
-	describe("#resetModeSyncStates()", function () {
+	describe("#resetAllSyncStates()", function () {
 		it("should reset attachment sync states to 'to_upload'", function* () {
 			var attachment = yield importFileAttachment('test.png');
 			attachment.attachmentSyncState = 'in_sync';
 			yield attachment.saveTx();
 			
 			var local = Zotero.Sync.Storage.Local;
-			yield local.resetModeSyncStates()
+			yield local.resetAllSyncStates()
 			assert.strictEqual(attachment.attachmentSyncState, local.SYNC_STATE_TO_UPLOAD);
 			var state = yield Zotero.DB.valueQueryAsync(
 				"SELECT syncState FROM itemAttachments WHERE itemID=?", attachment.id
@@ -215,24 +215,6 @@ describe("Zotero.Sync.Storage.Local", function () {
 				Zotero.File.getContentsAsync(OS.Path.join(storageDir, subDirName, file3Name)),
 				file3Contents
 			);
-		})
-	})
-	
-	describe("#_deleteExistingAttachmentFiles()", function () {
-		it("should delete all files", function* () {
-			var item = yield importFileAttachment('test.html');
-			var path = OS.Path.dirname(item.getFilePath());
-			var files = ['a', 'b', 'c', 'd'];
-			for (let file of files) {
-				yield Zotero.File.putContentsAsync(OS.Path.join(path, file), file);
-			}
-			yield Zotero.Sync.Storage.Local._deleteExistingAttachmentFiles(item);
-			for (let file of files) {
-				assert.isFalse(
-					(yield OS.File.exists(OS.Path.join(path, file))),
-					`File '${file}' doesn't exist`
-				);
-			}
 		})
 	})
 	

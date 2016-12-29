@@ -598,26 +598,130 @@ describe("Zotero.Translate", function() {
 	});
 	
 	describe("ItemSaver", function () {
-		describe("#saveItems()", function () {
-			it("should handle missing attachment files", function* () {
-				var item = yield importFileAttachment('test.png');
-				var path = item.getFilePath();
-				// Delete attachment file
-				yield OS.File.remove(path);
+		describe("#saveCollections()", function () {
+			it("should add top-level collections to specified collection", function* () {
+				var collection = yield createDataObject('collection');
+				var collections = [
+					{
+						name: "Collection",
+						type: "collection",
+						children: []
+					}
+				];
+				var items = [
+					{
+						itemType: "book",
+						title: "Test"
+					}
+				];
 				
-				var translation = new Zotero.Translate.Export();
-				var tmpDir = yield getTempDirectory();
-				var exportDir = OS.Path.join(tmpDir, 'export');
-				translation.setLocation(Zotero.File.pathToFile(exportDir));
-				translation.setItems([item]);
-				translation.setTranslator('14763d24-8ba0-45df-8f52-b8d1108e7ac9'); // Zotero RDF
-				translation.setDisplayOptions({
-					exportFileData: true
+				var translation = new Zotero.Translate.Import();
+				translation.setString("");
+				translation.setTranslator(buildDummyTranslator(
+					"import",
+					"function detectImport() {}\n"
+					+ "function doImport() {\n"
+					+ "	var json = JSON.parse('" + JSON.stringify(collections).replace(/['\\]/g, "\\$&") + "');\n"
+					+ "	for (let o of json) {"
+					+ "		var collection = new Zotero.Collection;\n"
+					+ "		for (let field in o) { collection[field] = o[field]; }\n"
+					+ "		collection.complete();\n"
+					+ "	}\n"
+					+ "	json = JSON.parse('" + JSON.stringify(items).replace(/['\\]/g, "\\$&") + "');\n"
+					+ "	for (let o of json) {"
+					+ "		var item = new Zotero.Item;\n"
+					+ "		for (let field in o) { item[field] = o[field]; }\n"
+					+ "		item.complete();\n"
+					+ "	}\n"
+					+ "}"
+				));
+				yield translation.translate({
+					collections: [collection.id]
 				});
-				yield translation.translate();
+				assert.lengthOf(translation.newCollections, 1);
+				assert.isNumber(translation.newCollections[0].id);
+				assert.lengthOf(translation.newItems, 1);
+				assert.isNumber(translation.newItems[0].id);
+				var childCollections = Array.from(collection.getChildCollections(true));
+				assert.sameMembers(childCollections, translation.newCollections.map(c => c.id));
+			});
+		});
+		
+		describe("#_saveAttachment()", function () {
+			it("should save standalone attachment to collection", function* () {
+				var collection = yield createDataObject('collection');
+				var items = [
+					{
+						itemType: "attachment",
+						title: "Test",
+						mimeType: "text/html",
+						url: "http://example.com"
+					}
+				];
 				
-				var exportFile = OS.Path.join(exportDir, 'export.rdf');
-				assert.isAbove((yield OS.File.stat(exportFile)).size, 0);
+				var translation = new Zotero.Translate.Import();
+				translation.setString("");
+				translation.setTranslator(buildDummyTranslator(
+					"import",
+					"function detectImport() {}\n"
+					+ "function doImport() {\n"
+					+ "	var json = JSON.parse('" + JSON.stringify(items).replace(/['\\]/g, "\\$&") + "');\n"
+					+ "	for (var i=0; i<json.length; i++) {"
+					+ "		var item = new Zotero.Item;\n"
+					+ "		for (var field in json[i]) { item[field] = json[i][field]; }\n"
+					+ "		item.complete();\n"
+					+ "	}\n"
+					+ "}"
+				));
+				yield translation.translate({
+					collections: [collection.id]
+				});
+				assert.lengthOf(translation.newItems, 1);
+				assert.isNumber(translation.newItems[0].id);
+				assert.ok(collection.hasItem(translation.newItems[0].id));
+			});
+
+		});
+		describe('#saveItems', function() {
+			it("should deproxify item and attachment urls when proxy provided", function* (){
+				var itemID;
+				var item = loadSampleData('journalArticle');
+				item = item.journalArticle;
+				item.url = 'https://www-example-com.proxy.example.com/';
+				item.attachments = [{
+					url: 'https://www-example-com.proxy.example.com/pdf.pdf',
+					mimeType: 'application/pdf',
+					title: 'Example PDF'}];
+				var itemSaver = new Zotero.Translate.ItemSaver({
+					libraryID: Zotero.Libraries.userLibraryID,
+					attachmentMode: Zotero.Translate.ItemSaver.ATTACHMENT_MODE_FILE,
+					proxy: new Zotero.Proxy({scheme: 'https://%h.proxy.example.com/%p', dotsToHyphens: true})
+				});
+				var itemDeferred = Zotero.Promise.defer();
+				var attachmentDeferred = Zotero.Promise.defer();
+				itemSaver.saveItems([item], Zotero.Promise.coroutine(function* (attachment, progressPercentage) {
+					// ItemSaver returns immediately without waiting for attachments, so we use the callback
+					// to test attachments
+					if (progressPercentage != 100) return;
+					try {
+						yield itemDeferred.promise;
+						let item = Zotero.Items.get(itemID);
+						attachment = Zotero.Items.get(item.getAttachments()[0]);
+						assert.equal(attachment.getField('url'), 'https://www.example.com/pdf.pdf');
+						attachmentDeferred.resolve();
+					} catch (e) {
+						attachmentDeferred.reject(e);
+					}
+				})).then(function(items) {
+					try {
+						assert.equal(items[0].getField('url'), 'https://www.example.com/');
+						itemID = items[0].id;
+						itemDeferred.resolve();
+					} catch (e) {
+						itemDeferred.reject(e);
+					}
+				});
+				yield Zotero.Promise.all([itemDeferred.promise, attachmentDeferred.promise]);
 			});
 		});
 	});
@@ -1221,6 +1325,29 @@ describe("Zotero.Translate.ItemGetter", function() {
 			getter.setCollection(col);
 			
 			assert.equal(getter.numItems, 2);
+		});
+	});
+	
+	describe("#_attachmentToArray()", function () {
+		it("should handle missing attachment files", function* () {
+			var item = yield importFileAttachment('test.png');
+			var path = item.getFilePath();
+			// Delete attachment file
+			yield OS.File.remove(path);
+			
+			var translation = new Zotero.Translate.Export();
+			var tmpDir = yield getTempDirectory();
+			var exportDir = OS.Path.join(tmpDir, 'export');
+			translation.setLocation(Zotero.File.pathToFile(exportDir));
+			translation.setItems([item]);
+			translation.setTranslator('14763d24-8ba0-45df-8f52-b8d1108e7ac9'); // Zotero RDF
+			translation.setDisplayOptions({
+				exportFileData: true
+			});
+			yield translation.translate();
+			
+			var exportFile = OS.Path.join(exportDir, 'export.rdf');
+			assert.isAbove((yield OS.File.stat(exportFile)).size, 0);
 		});
 	});
 });

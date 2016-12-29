@@ -174,7 +174,7 @@ Zotero.DataDirectory = {
 			
 			if(defProfile) {
 				// get Zotero directory
-				let profileDir = defProfile[0].path;
+				let profileDir = defProfile[0];
 				Zotero.debug("Found default profile at " + profileDir);
 				
 				// copy prefs
@@ -506,6 +506,25 @@ Zotero.DataDirectory = {
 			let foundPipe = yield Zotero.IPC.pipeExists();
 			if (foundPipe) {
 				Zotero.debug("Found existing pipe -- skipping migration");
+				
+				if (!automatic) {
+					let ps = Services.prompt;
+					let buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING)
+						+ (ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_IS_STRING);
+					let index = ps.confirmEx(null,
+						Zotero.getString('dataDir.migration.failure.title'),
+						Zotero.getString('dataDir.migration.failure.full.firefoxOpen'),
+						buttonFlags,
+						Zotero.getString('general.tryAgain'),
+						Zotero.getString('general.tryLater'),
+						null, null, {}
+					);
+					
+					if (index == 0) {
+						return this.checkForMigration(newDir, newDir);
+					}
+				}
+				
 				return false;
 			}
 		}
@@ -576,7 +595,13 @@ Zotero.DataDirectory = {
 		// This can seemingly fail due to a race condition building the Standalone window,
 		// so just ignore it if it does
 		try {
-			Zotero.showZoteroPaneProgressMeter(Zotero.getString("dataDir.migration.inProgress"));
+			Zotero.showZoteroPaneProgressMeter(
+				Zotero.getString("dataDir.migration.inProgress"),
+				false,
+				null,
+				// Don't show message in a popup in Standalone if pane isn't ready
+				Zotero.iStandalone
+			);
 		}
 		catch (e) {
 			Zotero.logError(e);
@@ -724,47 +749,13 @@ Zotero.DataDirectory = {
 		
 		// Create the new directory
 		if (!partial) {
-			try {
-				yield OS.File.makeDir(
-					newDir,
-					{
-						ignoreExisting: false,
-						unixMode: 0o755
-					}
-				);
-			}
-			catch (e) {
-				// If default dir exists and is non-empty, move it out of the way
-				// ("Zotero-1", "Zotero-2", …)
-				if (e instanceof OS.File.Error && e.becauseExists) {
-					if (!(yield Zotero.File.directoryIsEmpty(newDir))) {
-						let i = 1;
-						while (true) {
-							let backupDir = newDir + "-" + i++;
-							if (yield OS.File.exists(backupDir)) {
-								if (i > 5) {
-									throw new Error("Too many backup directories "
-										+ "-- stopped at " + backupDir);
-								}
-								continue;
-							}
-							Zotero.debug(`Moving existing directory to ${backupDir}`);
-							yield Zotero.File.moveDirectory(newDir, backupDir);
-							break;
-						}
-						yield OS.File.makeDir(
-							newDir,
-							{
-								ignoreExisting: false,
-								unixMode: 0o755
-							}
-						);
-					}
+			yield OS.File.makeDir(
+				newDir,
+				{
+					ignoreExisting: false,
+					unixMode: 0o755
 				}
-				else {
-					throw e;
-				}
-			}
+			);
 		}
 		
 		// Copy marker

@@ -22,7 +22,6 @@
     
     ***** END LICENSE BLOCK *****
 */
-const ZOTERO_TAB_URL = "chrome://zotero/content/tab.xul";
 
 /*
  * This object contains the various functions for the interface
@@ -34,7 +33,7 @@ var ZoteroPane = new function()
 	this.itemsView = false;
 	this.progressWindow = false;
 	this._listeners = {};
-	this.__defineGetter__('loaded', function () _loaded);
+	this.__defineGetter__('loaded', function () { return _loaded; });
 	var _lastSelectedItems = [];
 	
 	//Privileged methods
@@ -81,6 +80,12 @@ var ZoteroPane = new function()
 		if (Zotero.isMac && Zotero.isStandalone
 				&& window.document.documentElement.getAttribute('sizemode') == 'fullscreen') {
 			window.document.documentElement.setAttribute('sizemode', 'normal');
+		}
+		
+		// For now, keep actions menu in the DOM and show it in Firefox for development
+		if (!Zotero.isStandalone) {
+			document.getElementById('zotero-tb-actions-menu-separator').hidden = false;
+			document.getElementById('zotero-tb-actions-menu').hidden = false;
 		}
 		
 		// Set "Report Errors..." label via property rather than DTD entity,
@@ -395,7 +400,8 @@ var ZoteroPane = new function()
 		this.updateTagSelectorSize();
 		
 		// restore saved row selection (for tab switching)
-		var containerWindow = (window.ZoteroTab ? window.ZoteroTab.containerWindow : window);
+		// TODO: Remove now that no tab mode?
+		var containerWindow = window;
 		if(containerWindow.zoteroSavedCollectionSelection) {
 			this.collectionsView.addEventListener('load', Zotero.Promise.coroutine(function* () {
 				yield this.collectionsView.selectByID(containerWindow.zoteroSavedCollectionSelection);
@@ -424,7 +430,8 @@ var ZoteroPane = new function()
 		
 		// Auto-sync on pane open or if new account
 		if (Zotero.Prefs.get('sync.autoSync') || Zotero.initAutoSync) {
-			yield Zotero.proxyAuthComplete.delay(1000);
+			yield Zotero.proxyAuthComplete;
+			yield Zotero.uiReadyPromise;
 			
 			if (!Zotero.Sync.Runner.enabled) {
 				Zotero.debug('Sync not enabled -- skipping auto-sync', 4);
@@ -725,9 +732,6 @@ var ZoteroPane = new function()
 				case 'toggleTagSelector':
 					ZoteroPane_Local.toggleTagSelector();
 					break;
-				case 'toggleFullscreen':
-					ZoteroPane_Local.toggleTab();
-					break;
 				case 'copySelectedItemCitationsToClipboard':
 					ZoteroPane_Local.copySelectedItemsToClipboard(true)
 					break;
@@ -915,7 +919,8 @@ var ZoteroPane = new function()
 			feed.url = data.url;
 			feed.name = data.title;
 			feed.refreshInterval = data.ttl;
-			feed.cleanupAfter = data.cleanupAfter;
+			feed.cleanupReadAfter = data.cleanupReadAfter;
+			feed.cleanupUnreadAfter = data.cleanupUnreadAfter;
 			yield feed.saveTx();
 			yield feed.updateFeed();
 		}
@@ -930,7 +935,8 @@ var ZoteroPane = new function()
 			feed.url = data.url;
 			feed.name = data.title;
 			feed.refreshInterval = data.ttl;
-			feed.cleanupAfter = data.cleanupAfter;
+			feed.cleanupReadAfter = data.cleanupReadAfter;
+			feed.cleanupUnreadAfter = data.cleanupUnreadAfter;
 			yield feed.saveTx();
 			yield feed.updateFeed();
 		}
@@ -949,8 +955,12 @@ var ZoteroPane = new function()
 		s.addCondition('title', 'contains', '');
 		
 		var untitled = Zotero.getString('pane.collections.untitled');
-		untitled = yield Zotero.DB.getNextName('savedSearches', 'savedSearchName',
-			Zotero.getString('pane.collections.untitled'));
+		untitled = yield Zotero.DB.getNextName(
+			s.libraryID,
+			'savedSearches',
+			'savedSearchName',
+			Zotero.getString('pane.collections.untitled')
+		);
 		var io = {dataIn: {search: s, name: untitled}, dataOut: null};
 		window.openDialog('chrome://zotero/content/searchDialog.xul','','chrome,modal',io);
 		if (!io.dataOut) {
@@ -2066,7 +2076,8 @@ var ZoteroPane = new function()
 			url: feed.url,
 			title: feed.name,
 			ttl: feed.refreshInterval,
-			cleanupAfter: feed.cleanupAfter
+			cleanupReadAfter: feed.cleanupReadAfter,
+			cleanupUnreadAfter: feed.cleanupUnreadAfter
 		};
 		
 		window.openDialog('chrome://zotero/content/feedSettings.xul', 
@@ -2075,7 +2086,8 @@ var ZoteroPane = new function()
 		
 		feed.name = data.title;
 		feed.refreshInterval = data.ttl;
-		feed.cleanupAfter = data.cleanupAfter;
+		feed.cleanupReadAfter = data.cleanupReadAfter;
+		feed.cleanupUnreadAfter = data.cleanupUnreadAfter;
 		yield feed.saveTx();
 	});
 	
@@ -2195,14 +2207,7 @@ var ZoteroPane = new function()
 	});
 	
 	
-	/*
-	 * Select item in current collection or, if not there, in Library
-	 *
-	 * If _inLibrary_, force switch to Library
-	 * If _expand_, open item if it's a container
-	 */
-	this.selectItem = Zotero.Promise.coroutine(function* (itemID, inLibrary, expand)
-	{
+	this.selectItem = Zotero.Promise.coroutine(function* (itemID, inLibraryRoot, expand) {
 		if (!itemID) {
 			return false;
 		}
@@ -2221,47 +2226,11 @@ var ZoteroPane = new function()
 			throw new Error("Collections view not loaded");
 		}
 		
-		var cv = this.collectionsView;
+		var found = yield this.collectionsView.selectItem(itemID, inLibraryRoot, expand);
 		
-		var deferred = Zotero.Promise.defer();
-		cv.addEventListener('load', () => deferred.resolve());
-		yield deferred.promise;
-		
-		var currentLibraryID = this.getSelectedLibraryID();
-		// If in a different library
-		if (item.libraryID != currentLibraryID) {
-			Zotero.debug("Library ID differs; switching library");
-			yield cv.selectLibrary(item.libraryID);
-		}
-		// Force switch to library view
-		else if (!cv.selectedTreeRow.isLibrary() && inLibrary) {
-			Zotero.debug("Told to select in library; switching to library");
-			yield cv.selectLibrary(item.libraryID);
-		}
-		
-		deferred = Zotero.Promise.defer();
-		this.itemsView.addEventListener('load', () => deferred.resolve());
-		yield deferred.promise;
-		
-		// Focus the items column before selecting the item.
-		document.getElementById('zotero-items-tree').focus();
-		
-		var selected = yield this.itemsView.selectItem(itemID, expand);
-		if (!selected) {
-			if (item.deleted) {
-				Zotero.debug("Item is deleted; switching to trash");
-				yield cv.selectTrash(item.libraryID);
-			}
-			else {
-				Zotero.debug("Item was not selected; switching to library");
-				yield cv.selectLibrary(item.libraryID);
-			}
-			
-			deferred = Zotero.Promise.defer();
-			this.itemsView.addEventListener('load', () => deferred.resolve());
-			yield deferred.promise;
-			
-			yield this.itemsView.selectItem(itemID, expand);
+		// Focus the items pane
+		if (found) {
+			document.getElementById('zotero-items-tree').focus();
 		}
 		
 		// open Zotero pane
@@ -2988,7 +2957,7 @@ var ZoteroPane = new function()
 					ZoteroPane_Local.buildItemContextMenu()
 					.then(function () {
 						document.getElementById('zotero-itemmenu').openPopup(
-							null, null, event.clientX, event.clientY, true, false, event
+							null, null, event.clientX + 1, event.clientY + 1, true, false, event
 						);
 					})
 				});
@@ -3595,7 +3564,7 @@ var ZoteroPane = new function()
 		if(fp.show() == nsIFilePicker.returnOK)
 		{
 			if (!parentItemID) {
-				var collection = this.getSelectedCollection();
+				var collection = this.getSelectedCollection(true);
 			}
 			
 			var files = fp.files;
@@ -4706,17 +4675,6 @@ var ZoteroPane = new function()
 	}
 	
 	/**
-	 * Toggles Zotero-as-a-tab by passing off the request to the ZoteroOverlay object associated
-	 * with the present window
-	 */
-	this.toggleTab = function() {
-		var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-						   .getService(Components.interfaces.nsIWindowMediator);
-		var browserWindow = wm.getMostRecentWindow("navigator:browser");
-		if(browserWindow.ZoteroOverlay) browserWindow.ZoteroOverlay.toggleTab();
-	}
-
-	/**
 	 * Sets the layout to either a three-vertical-pane layout and a layout where itemsPane is above itemPane
 	 */
 	this.updateLayout = function() {
@@ -4739,9 +4697,7 @@ var ZoteroPane = new function()
 	 */
 	this.show = function() {
 		if(window.ZoteroOverlay) {
-			if(ZoteroOverlay.isTab) {
-				ZoteroOverlay.loadZoteroTab();
-			} else if(!this.isShowing()) {
+			if (!this.isShowing()) {
 				ZoteroOverlay.toggleDisplay();
 			}
 		}
@@ -4829,7 +4785,12 @@ var ZoteroPane = new function()
 			if (collectionsPane.collapsed) {
 				itemsToolbarWidth -= collectionsToolbar.boxObject.width;
 			}
-
+			// Not sure why this is necessary, but it keeps the search bar from overflowing into the
+			// right-hand pane
+			else {
+				itemsToolbarWidth -= 8;
+			}
+			
 			itemsToolbar.style.width = itemsToolbarWidth + "px";
 			itemsToolbar.setAttribute("flex", "0");
 			itemToolbar.setAttribute("flex", "1");

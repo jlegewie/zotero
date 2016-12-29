@@ -224,8 +224,11 @@ var Zotero_File_Interface = new function() {
 			fp.init(window, Zotero.getString("fileInterface.import"), nsIFilePicker.modeOpen);
 			
 			fp.appendFilters(nsIFilePicker.filterAll);
-			for(var i in translators) {
-				fp.appendFilter(translators[i].label, "*."+translators[i].target);
+			
+			var collation = Zotero.getLocaleCollation();
+			translators.sort((a, b) => collation.compareString(1, a.label, b.label))
+			for (let translator of translators) {
+				fp.appendFilter(translator.label, "*." + translator.target);
 			}
 			
 			var rv = fp.show();
@@ -257,10 +260,21 @@ var Zotero_File_Interface = new function() {
 	
 		try {
 			if (!ZoteroPane.collectionsView.editable) {
-				ZoteroPane.collectionsView.selectLibrary(null);
+				yield ZoteroPane.collectionsView.selectLibrary();
 			}
 		} catch(e) {}
+		
 		yield _finishImport(translation, false);
+		
+		// Select imported items
+		try {
+			if (translation.newItems) {
+				ZoteroPane.itemsView.selectItems(translation.newItems.map(item => item.id));
+			}
+		}
+		catch (e) {
+			Zotero.logError(e, 2);
+		}
 	});
 	
 	
@@ -317,44 +331,39 @@ var Zotero_File_Interface = new function() {
 		}
 
 		translation.setTranslator(translators[0]);
-		translation.setHandler("itemDone",  function () {
+		// TODO: Restore a progress meter
+		/*translation.setHandler("itemDone",  function () {
 			Zotero.updateZoteroPaneProgressMeter(translation.getProgress());
-		});
-
-		// show progress indicator
-		Zotero_File_Interface.Progress.show(
-			Zotero.getString("fileInterface.itemsImported")
-		);
+		});*/
 
 		yield Zotero.Promise.delay(0);
 
 		let failed = false;
 		try {
-			yield translation.translate(libraryID);
+			yield translation.translate({
+				libraryID,
+				collections: importCollection ? [importCollection.id] : null
+			});
 		} catch(e) {
 			Zotero.logError(e);
-			failed = true;
-		}
-		Zotero_File_Interface.Progress.close();
-
-		// Add items to import collection
-		if(importCollection) {
-			yield Zotero.DB.executeTransaction(function* () {
-				yield importCollection.addItems(translation.newItems.map(item => item.id));
-				for(let i=0; i<translation.newCollections.length; i++) {
-					let collection = translation.newCollections[i];
-					collection.parent = importCollection.id;
-					yield collection.save();
-				}
-			});
-			// 	// TODO: yield or change to .queue()
-			// 	Zotero.Notifier.trigger('refresh', 'collection', importCollection.id);
-		}
-
-		if(failed) {
 			window.alert(Zotero.getString("fileInterface.importError"));
 			return;
 		}
+		
+		// Show popup on completion
+		var numItems = translation.newItems.length;
+		var progressWin = new Zotero.ProgressWindow();
+		progressWin.changeHeadline(Zotero.getString('fileInterface.importComplete'));
+		if (numItems == 1) {
+			var icon = translation.newItems[0].getImageSrc();
+		}
+		else {
+			var icon = 'chrome://zotero/skin/treesource-unfiled' + (Zotero.hiDPI ? "@2x" : "") + '.png';
+		}
+		var title = Zotero.getString(`fileInterface.itemsWereImported`, numItems, numItems);
+		progressWin.addLines(title, icon)
+		progressWin.show();
+		progressWin.startCloseTimer();
 	});
 	
 	/*
@@ -465,7 +474,7 @@ var Zotero_File_Interface = new function() {
 	function _doBibliographyOptions(name, items) {
 		// make sure at least one item is not a standalone note or attachment
 		var haveRegularItem = false;
-		for each(var item in items) {
+		for (let item of items) {
 			if (item.isRegularItem()) {
 				haveRegularItem = true;
 				break;
@@ -602,7 +611,7 @@ var Zotero_File_Interface = new function() {
 			// open file
 			var fStream = Components.classes["@mozilla.org/network/file-output-stream;1"].
 						  createInstance(Components.interfaces.nsIFileOutputStream);
-			fStream.init(fp.file, 0x02 | 0x08 | 0x20, 0664, 0); // write, create, truncate
+			fStream.init(fp.file, 0x02 | 0x08 | 0x20, 0o664, 0); // write, create, truncate
 			return fStream;
 		} else {
 			return false;

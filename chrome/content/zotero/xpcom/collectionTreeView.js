@@ -1147,6 +1147,69 @@ Zotero.CollectionTreeView.prototype.selectTrash = Zotero.Promise.coroutine(funct
 });
 
 
+/**
+ * Find item in current collection, or, if not there, in a library root, and select it
+ *
+ * @param {Integer} itemID
+ * @param {Boolean} [inLibraryRoot=false] - Always show in library root
+ * @param {Boolean} [expand=false] - Open item if it's a container
+ * @return {Boolean} - True if item was found, false if not
+ */
+Zotero.CollectionTreeView.prototype.selectItem = Zotero.Promise.coroutine(function* (itemID, inLibraryRoot, expand) {
+	if (!itemID) {
+		return false;
+	}
+	
+	var item = yield Zotero.Items.getAsync(itemID);
+	if (!item) {
+		return false;
+	}
+	
+	var deferred = Zotero.Promise.defer();
+	this.addEventListener('load', () => deferred.resolve());
+	yield deferred.promise;
+	
+	var currentLibraryID = this.getSelectedLibraryID();
+	// If in a different library
+	if (item.libraryID != currentLibraryID) {
+		Zotero.debug("Library ID differs; switching library");
+		yield this.selectLibrary(item.libraryID);
+	}
+	// Force switch to library view
+	else if (!this.selectedTreeRow.isLibrary() && inLibraryRoot) {
+		Zotero.debug("Told to select in library; switching to library");
+		yield cv.selectLibrary(item.libraryID);
+	}
+	
+	var itemsView = this.selectedTreeRow.itemTreeView;
+	
+	deferred = Zotero.Promise.defer();
+	itemsView.addEventListener('load', () => deferred.resolve());
+	yield deferred.promise;
+	
+	var selected = yield itemsView.selectItem(itemID, expand);
+	if (selected) {
+		return true;
+	}
+	
+	if (item.deleted) {
+		Zotero.debug("Item is deleted; switching to trash");
+		yield this.selectTrash(item.libraryID);
+	}
+	else {
+		Zotero.debug("Item was not selected; switching to library");
+		yield this.selectLibrary(item.libraryID);
+	}
+	
+	itemsView = this.selectedTreeRow.itemTreeView;
+	deferred = Zotero.Promise.defer();
+	itemsView.addEventListener('load', () => deferred.resolve());
+	yield deferred.promise;
+	
+	return itemsView.selectItem(itemID, expand);
+});
+
+
 /*
  *  Delete the selection
  */
@@ -1533,7 +1596,7 @@ Zotero.CollectionTreeView.prototype.canDropCheck = function (row, orient, dataTr
 			var ids = data;
 			var items = Zotero.Items.get(ids);
 			var skip = true;
-			for each(var item in items) {
+			for (let item of items) {
 				// Can only drag top-level items
 				if (!item.isTopLevelItem()) {
 					Zotero.debug("Can't drag child item");
@@ -1738,7 +1801,7 @@ Zotero.CollectionTreeView.prototype.canDropCheckAsync = Zotero.Promise.coroutine
 				}
 				
 				var descendents = col.getDescendents(false, 'collection');
-				for each(var descendent in descendents) {
+				for (let descendent of descendents) {
 					descendent = Zotero.Collections.get(descendent.id);
 					// Disallow if linked collection already exists for any subcollections
 					//
@@ -1883,7 +1946,7 @@ Zotero.CollectionTreeView.prototype.drop = Zotero.Promise.coroutine(function* (r
 		if (options.childNotes) {
 			var noteIDs = item.getNotes();
 			var notes = Zotero.Items.get(noteIDs);
-			for each(var note in notes) {
+			for (let note of notes) {
 				let newNote = note.clone(targetLibraryID, { skipTags: !options.tags });
 				newNote.parentID = newItemID;
 				yield newNote.save({
@@ -1898,7 +1961,7 @@ Zotero.CollectionTreeView.prototype.drop = Zotero.Promise.coroutine(function* (r
 		if (options.childLinks || options.childFileAttachments) {
 			var attachmentIDs = item.getAttachments();
 			var attachments = Zotero.Items.get(attachmentIDs);
-			for each(var attachment in attachments) {
+			for (let attachment of attachments) {
 				var linkMode = attachment.attachmentLinkMode;
 				
 				// Skip linked files
@@ -2069,7 +2132,7 @@ Zotero.CollectionTreeView.prototype.drop = Zotero.Promise.coroutine(function* (r
 				var sameLibrary = false;
 			}
 			
-			for each(var item in items) {
+			for (let item of items) {
 				if (!item.isTopLevelItem()) {
 					continue;
 				}
@@ -2126,7 +2189,7 @@ Zotero.CollectionTreeView.prototype.drop = Zotero.Promise.coroutine(function* (r
 					var lastWin = wm.getMostRecentWindow("navigator:browser");
 					lastWin.openDialog('chrome://zotero/content/merge.xul', '', 'chrome,modal,centerscreen', io);
 					
-					for each(var obj in io.dataOut) {
+					for (let obj of io.dataOut) {
 						yield obj.ref.save();
 					}
 				}
@@ -2164,71 +2227,65 @@ Zotero.CollectionTreeView.prototype.drop = Zotero.Promise.coroutine(function* (r
 			var parentCollectionID = false;
 		}
 		
-		var commitNotifier = Zotero.Notifier.begin();
-		try {
-			for (var i=0; i<data.length; i++) {
-				var file = data[i];
+		for (var i=0; i<data.length; i++) {
+			var file = data[i];
+			
+			if (dataType == 'text/x-moz-url') {
+				var url = data[i];
 				
-				if (dataType == 'text/x-moz-url') {
-					var url = data[i];
-					
-					if (url.indexOf('file:///') == 0) {
-						var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-								   .getService(Components.interfaces.nsIWindowMediator);
-						var win = wm.getMostRecentWindow("navigator:browser");
-						// If dragging currently loaded page, only convert to
-						// file if not an HTML document
-						if (win.content.location.href != url ||
-								win.content.document.contentType != 'text/html') {
-							var nsIFPH = Components.classes["@mozilla.org/network/protocol;1?name=file"]
-									.getService(Components.interfaces.nsIFileProtocolHandler);
-							try {
-								var file = nsIFPH.getFileFromURLSpec(url);
-							}
-							catch (e) {
-								Zotero.debug(e);
-							}
-						}
-					}
-					
-					// Still string, so remote URL
-					if (typeof file == 'string') {
-						var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-								   .getService(Components.interfaces.nsIWindowMediator);
-						var win = wm.getMostRecentWindow("navigator:browser");
-						win.ZoteroPane.addItemFromURL(url, 'temporaryPDFHack', null, row); // TODO: don't do this
-						continue;
-					}
-					
-					// Otherwise file, so fall through
-				}
-				
-				if (dropEffect == 'link') {
-					yield Zotero.Attachments.linkFromFile({
-						file: file,
-						collections: [parentCollectionID]
-					});
-				}
-				else {
-					yield Zotero.Attachments.importFromFile({
-						file: file,
-						libraryID: targetLibraryID,
-						collections: [parentCollectionID]
-					});
-					// If moving, delete original file
-					if (dragData.dropEffect == 'move') {
+				if (url.indexOf('file:///') == 0) {
+					var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+							   .getService(Components.interfaces.nsIWindowMediator);
+					var win = wm.getMostRecentWindow("navigator:browser");
+					// If dragging currently loaded page, only convert to
+					// file if not an HTML document
+					if (win.content.location.href != url ||
+							win.content.document.contentType != 'text/html') {
+						var nsIFPH = Components.classes["@mozilla.org/network/protocol;1?name=file"]
+								.getService(Components.interfaces.nsIFileProtocolHandler);
 						try {
-							file.remove(false);
+							var file = nsIFPH.getFileFromURLSpec(url);
 						}
 						catch (e) {
-							Components.utils.reportError("Error deleting original file " + file.path + " after drag");
+							Zotero.debug(e);
 						}
+					}
+				}
+				
+				// Still string, so remote URL
+				if (typeof file == 'string') {
+					var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+							   .getService(Components.interfaces.nsIWindowMediator);
+					var win = wm.getMostRecentWindow("navigator:browser");
+					win.ZoteroPane.addItemFromURL(url, 'temporaryPDFHack', null, row); // TODO: don't do this
+					continue;
+				}
+				
+				// Otherwise file, so fall through
+			}
+			
+			if (dropEffect == 'link') {
+				yield Zotero.Attachments.linkFromFile({
+					file: file,
+					collections: parentCollectionID ? [parentCollectionID] : undefined
+				});
+			}
+			else {
+				yield Zotero.Attachments.importFromFile({
+					file: file,
+					libraryID: targetLibraryID,
+					collections: parentCollectionID ? [parentCollectionID] : undefined
+				});
+				// If moving, delete original file
+				if (dragData.dropEffect == 'move') {
+					try {
+						file.remove(false);
+					}
+					catch (e) {
+						Components.utils.reportError("Error deleting original file " + file.path + " after drag");
 					}
 				}
 			}
-		}
-		finally {
-			Zotero.Notifier.commit(unlock);
 		}
 	}
 });

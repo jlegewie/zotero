@@ -146,10 +146,10 @@ Zotero.Translators = new function() {
 		if(!_initialized) Zotero.Translators.init();
 		var allTranslators = _cache["web"];
 		var potentialTranslators = [];
-		var converterFunctions = [];
+		var proxies = [];
 		
-		var rootSearchURIs = this.getSearchURIs(rootURI);
-		var frameSearchURIs = isFrame ? this.getSearchURIs(URI) : rootSearchURIs;
+		var rootSearchURIs = Zotero.Proxies.getPotentialProxies(rootURI);
+		var frameSearchURIs = isFrame ? Zotero.Proxies.getPotentialProxies(URI) : rootSearchURIs;
 
 		Zotero.debug("Translators: Looking for translators for "+Object.keys(frameSearchURIs).join(', '));
 
@@ -174,14 +174,14 @@ Zotero.Translators = new function() {
 							
 						if (frameURIMatches) {
 							potentialTranslators.push(translator);
-							converterFunctions.push(frameSearchURIs[frameSearchURI]);
+							proxies.push(frameSearchURIs[frameSearchURI]);
 							// prevent adding the translator multiple times
 							break rootURIsLoop;
 						}
 					}
 				} else if(!isFrame && (isGeneric || rootURIMatches)) {
 					potentialTranslators.push(translator);
-					converterFunctions.push(rootSearchURIs[rootSearchURI]);
+					proxies.push(rootSearchURIs[rootSearchURI]);
 					break;
 				}
 			}
@@ -189,51 +189,10 @@ Zotero.Translators = new function() {
 		
 		var codeGetter = new Zotero.Translators.CodeGetter(potentialTranslators);
 		return codeGetter.getAll().then(function () {
-			return [potentialTranslators, converterFunctions];
+			return [potentialTranslators, proxies];
 		});
 	});
-	
-	/**
-	 * Get the array of searchURIs and related proxy converter functions
-	 * 
-	 * @param {String} URI to get searchURIs and converterFunctions for
-	 */
-	this.getSearchURIs = function(URI) {
-		var searchURIs = {};
-		searchURIs[URI] = null;
-		
-		// if there is a subdomain that is also a TLD, also test against URI with the domain
-		// dropped after the TLD
-		// (i.e., www.nature.com.mutex.gmu.edu => www.nature.com)
-		var m = /^(https?:\/\/)([^\/]+)/i.exec(URI);
-		if (m) {
-			// First, drop the 0- if it exists (this is an III invention)
-			var host = m[2];
-			if(host.substr(0, 2) === "0-") host = host.substr(2);
-			var hostnames = host.split(".");
-			for (var i=1; i<hostnames.length-2; i++) {
-				if (TLDS[hostnames[i].toLowerCase()]) {
-					var properHost = hostnames.slice(0, i+1).join(".");
-					var proxyHost = hostnames.slice(i+1).join(".");
-					var searchURI = m[1]+properHost+URI.substr(m[0].length);
-					if(Zotero.isBrowserExt || Zotero.isSafari) {
-						// in Chrome/Safari, the converterFunction needs to be passed as JSON, so
-						// just push an array with the proper and proxyHosts
-						searchURIs[searchURI] = [properHost, proxyHost];
-					} else {
-						// in Firefox, add a converterFunction
-						searchURIs[searchURI] = new function() {
-							var re = new RegExp('^https?://(?:[^/]+\\.)?'+Zotero.Utilities.quotemeta(properHost)+'(?=/)', "gi");
-							var _proxyHost = proxyHost.replace(/\$/g, "$$$$");
-							return function(uri) { return uri.replace(re, "$&."+_proxyHost) };
-						};
-					}
-				}
-			}
-		}
-		return searchURIs;
-	};
-	
+
 	/**
 	 * Converts translators to JSON-serializable objects
 	 */
@@ -263,25 +222,21 @@ Zotero.Translators = new function() {
 	 *                        the specified translators.
 	 */
 	this.update = function(newMetadata, reset) {
-		if(!_initialized) Zotero.Translators.init();
-		if(!newMetadata.length) return;
+		if (!_initialized) Zotero.Translators.init();
+		if (!newMetadata.length) return;
+		var serializedTranslators = [];
 		
-		if(reset) {
-			var serializedTranslators = newMetadata.filter(function(translator) {
-				return !translator.deleted;
-			});
-		} else {
-			var serializedTranslators = [];
+		if (reset) {
+			serializedTranslators = newMetadata.map((t) => new Zotero.Translator(t));
+		}
+		else {
 			var hasChanged = false;
 			
 			// Update translators with new metadata
 			for(var i in newMetadata) {
 				var newTranslator = newMetadata[i];
 				
-				if(newTranslator.deleted) {
-					// handle translator deletions
-					delete _translators[newTranslator.translatorID];
-				} else if(_translators.hasOwnProperty(newTranslator.translatorID)) {
+				if(_translators.hasOwnProperty(newTranslator.translatorID)) {
 					var oldTranslator = _translators[newTranslator.translatorID];
 					
 					// check whether translator has changed
@@ -292,14 +247,23 @@ Zotero.Translators = new function() {
 							continue;
 						}
 						
-						Zotero.debug("Translators: Updating "+newTranslator.label);
+						Zotero.debug(`Translators: Updating ${newTranslator.label}`);
 						oldTranslator.init(newTranslator);
 						hasChanged = true;
 					}
 				} else {
-					Zotero.debug("Translators: Adding "+newTranslator.label);
+					Zotero.debug(`Translators: Adding ${newTranslator.label}`);
 					_translators[newTranslator.translatorID] = new Zotero.Translator(newTranslator);
 					hasChanged = true;
+				}
+			}
+			
+			let deletedTranslators = Object.keys(_translators).filter(id => _translators[id].deleted);
+			if (deletedTranslators.length) {
+				hasChanged = true;
+				for (let id of deletedTranslators) {
+					Zotero.debug(`Translators: Removing ${_translators[id].label}`);
+					delete _translators[id];
 				}
 			}
 			
@@ -363,7 +327,7 @@ Zotero.Translators.CodeGetter.prototype.getCodeFor = Zotero.Promise.method(funct
 			// include test cases)
 			|| (Zotero.Repo && translator.codeSource === Zotero.Repo.SOURCE_REPO)))) {
 		// get code
-		return translator.getCode();
+		return translator.getCode().catch((e) => Zotero.debug(`Failed to retrieve code for ${translator.translatorID}`));
 	}
 });
 
