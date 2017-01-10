@@ -707,8 +707,9 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			
 			yield Zotero.Sync.Data.Local.init();
 			yield Zotero.Sync.Data.Utilities.init();
-			Zotero.Sync.EventListeners.init();
 			Zotero.Sync.Runner = new Zotero.Sync.Runner_Module;
+			Zotero.Sync.Streamer = new Zotero.Sync.Streamer_Module;
+			Zotero.Sync.EventListeners.init();
 			
 			Zotero.MIMETypeHandler.init();
 			yield Zotero.Proxies.init();
@@ -716,7 +717,7 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			// Initialize keyboard shortcuts
 			Zotero.Keys.init();
 			
-			// Initialize Locate Manager
+			yield Zotero.Date.init();
 			Zotero.LocateManager.init();
 			yield Zotero.ID.init();
 			yield Zotero.Collections.init();
@@ -989,6 +990,38 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			}
 		}
 	}
+	
+	
+	/**
+	 * Opens a URL in the basic viewer, and optionally run a callback on load
+	 *
+	 * @param {String} uri
+	 * @param {Function} [onLoad] - Function to run once URI is loaded; passed the loaded document
+	 */
+	this.openInViewer = function (uri, onLoad) {
+		var wm = Services.wm;
+		var win = wm.getMostRecentWindow("zotero:basicViewer");
+		if (win) {
+			win.loadURI(uri);
+		} else {
+			let window = wm.getMostRecentWindow("navigator:browser");
+			win = window.openDialog("chrome://zotero/content/standalone/basicViewer.xul",
+				"basicViewer", "chrome,resizable,centerscreen,menubar,scrollbars", uri);
+		}
+		if (onLoad) {
+			let browser
+			let func = function () {
+				win.removeEventListener("load", func);
+				browser = win.document.documentElement.getElementsByTagName('browser')[0];
+				browser.addEventListener("pageshow", innerFunc);
+			};
+			let innerFunc = function () {
+				browser.removeEventListener("pageshow", innerFunc);
+				onLoad(browser.contentDocument);
+			};
+			win.addEventListener("load", func);
+		}
+	};
 	
 	
 	/*
@@ -1452,7 +1485,7 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		caller.setLogger(Zotero.debug);
 		return function () {
 			var args = arguments;
-			return caller.fcall(function () {
+			return caller.start(function () {
 				return fn.apply(this, args);
 			}.bind(this));
 		};
@@ -1959,40 +1992,46 @@ Zotero.Prefs = new function(){
 	/**
 	* Set a preference
 	**/
-	function set(pref, value) {
+	function set(pref, value, global) {
 		try {
-			switch (this.prefBranch.getPrefType(pref)){
-				case this.prefBranch.PREF_BOOL:
-					return this.prefBranch.setBoolPref(pref, value);
-				case this.prefBranch.PREF_STRING:
+			if (global) {
+				var branch = Services.prefs.getBranch("");
+			}
+			else {
+				var branch = this.prefBranch;
+			}
+			
+			switch (branch.getPrefType(pref)) {
+				case branch.PREF_BOOL:
+					return branch.setBoolPref(pref, value);
+				case branch.PREF_STRING:
 					let str = Cc["@mozilla.org/supports-string;1"]
 						.createInstance(Ci.nsISupportsString);
 					str.data = value;
-					return this.prefBranch.setComplexValue(pref, Ci.nsISupportsString, str);
-				case this.prefBranch.PREF_INT:
-					return this.prefBranch.setIntPref(pref, value);
+					return branch.setComplexValue(pref, Ci.nsISupportsString, str);
+				case branch.PREF_INT:
+					return branch.setIntPref(pref, value);
 				
 				// If not an existing pref, create appropriate type automatically
 				case 0:
 					if (typeof value == 'boolean') {
 						Zotero.debug("Creating boolean pref '" + pref + "'");
-						return this.prefBranch.setBoolPref(pref, value);
+						return branch.setBoolPref(pref, value);
 					}
 					if (typeof value == 'string') {
 						Zotero.debug("Creating string pref '" + pref + "'");
-						return this.prefBranch.setCharPref(pref, value);
+						return branch.setCharPref(pref, value);
 					}
 					if (parseInt(value) == value) {
 						Zotero.debug("Creating integer pref '" + pref + "'");
-						return this.prefBranch.setIntPref(pref, value);
+						return branch.setIntPref(pref, value);
 					}
-					throw ("Invalid preference value '" + value + "' for pref '" + pref + "'");
+					throw new Error("Invalid preference value '" + value + "' for pref '" + pref + "'");
 			}
 		}
 		catch (e) {
-			Components.utils.reportError(e);
-			Zotero.debug(e, 1);
-			throw ("Invalid preference '" + pref + "'");
+			Zotero.logError(e);
+			throw new Error("Invalid preference '" + pref + "'");
 		}
 	}
 	
