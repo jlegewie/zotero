@@ -779,7 +779,7 @@ function buildDummyTranslator(translatorType, code, info={}) {
 	const TRANSLATOR_TYPES = {"import":1, "export":2, "web":4, "search":8};
 	info = Object.assign({
 		"translatorID":"dummy-translator",
-		"translatorType":TRANSLATOR_TYPES[translatorType],
+		"translatorType": Number.isInteger(translatorType) ? translatorType : TRANSLATOR_TYPES[translatorType],
 		"label":"Dummy Translator",
 		"creator":"Simon Kornblith",
 		"target":"",

@@ -9,7 +9,7 @@ describe("Zotero.Date", function() {
 			"October", "November", "December"
 		];
 		var frenchShort = [
-			"jan", "fév", "mar", "avr", "mai", "jun", "jul", "aoû", "sep", "oct", "nov", "dec"
+			"jan", "fév", "mar", "avr", "mai", "juin", "juil", "aoû", "sep", "oct", "nov", "déc"
 		];
 		var frenchLong = [
 			"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
@@ -155,6 +155,26 @@ describe("Zotero.Date", function() {
 			assert.isFalse(Zotero.Date.isISODate("2015-04-29 17:28"));
 		})
 	})
+	
+	describe("#strToDate()", function () {
+		it("should work in translator sandbox", function* () {
+			var item = createUnsavedDataObject('item');
+			item.libraryID = Zotero.Libraries.userLibraryID;
+			item.setField('date', '2017-01-17');
+			
+			var called = false;
+			var translation = new Zotero.Translate.Export();
+			translation.setItems([item]);
+			translation.setTranslator("9cb70025-a888-4a29-a210-93ec52da40d4"); // BibTeX
+			translation.setHandler("done", function (obj, worked) {
+				called = true;
+				assert.isTrue(worked);
+				assert.include(obj.string, "{2017}");
+			});
+			yield translation.translate();
+			assert.ok(called);
+		});
+	});
 	
 	describe("#isHTTPDate()", function() {
 		it("should determine whether a date is an RFC 2822 compliant date", function() {

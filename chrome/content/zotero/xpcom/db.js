@@ -42,7 +42,6 @@ Zotero.DBConnection = function(dbName) {
 	
 	this.closed = false;
 	this.skipBackup = false;
-	this.transactionVacuum = false;
 	
 	// JS Date
 	this.__defineGetter__('transactionDate', function () {
@@ -500,6 +499,8 @@ Zotero.DBConnection.prototype.executeTransaction = Zotero.Promise.coroutine(func
 		if (options.vacuumOnCommit) {
 			Zotero.debug('Vacuuming database');
 			yield this.queryAsync('VACUUM');
+			Zotero.debug('Done vacuuming');
+			
 		}
 		
 		this._transactionID = null;
@@ -868,6 +869,23 @@ Zotero.DBConnection.prototype.observe = function(subject, topic, data) {
 }
 
 
+// TEMP
+Zotero.DBConnection.prototype.vacuum = function () {
+	return this.executeTransaction(function* () {}, { vacuumOnCommit: true });
+};
+
+
+// TEMP
+Zotero.DBConnection.prototype.info = Zotero.Promise.coroutine(function* () {
+	var info = {};
+	var pragmas = ['auto_vacuum', 'cache_size', 'locking_mode', 'page_size'];
+	for (let p of pragmas) {
+		info[p] = yield Zotero.DB.valueQueryAsync(`PRAGMA ${p}`);
+	}
+	return info;
+});
+
+
 Zotero.DBConnection.prototype.integrityCheck = Zotero.Promise.coroutine(function* () {
 	var ok = yield this.valueQueryAsync("PRAGMA integrity_check");
 	return ok == 'ok';
@@ -953,7 +971,9 @@ Zotero.DBConnection.prototype.backupDatabase = Zotero.Promise.coroutine(function
 	
 	// Start a promise that will be resolved when the backup is finished
 	var resolveBackupPromise;
-	yield this.waitForTransaction();
+	if (this.inTransaction()) {
+		yield this.waitForTransaction();
+	}
 	this._backupPromise = new Zotero.Promise(function () {
 		resolveBackupPromise = arguments[0];
 	});

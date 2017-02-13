@@ -80,129 +80,165 @@ Zotero.Translate.Sandbox = {
 		 * @param {Zotero.Translate} translate
 		 * @param {SandboxItem} An item created using the Zotero.Item class from the sandbox
 		 */
-		"_itemDone":function(translate, item) {
-			//Zotero.debug("Translate: Saving item");
-			
-			// warn if itemDone called after translation completed
-			if(translate._complete) {
-				Zotero.debug("Translate: WARNING: Zotero.Item#complete() called after Zotero.done(); please fix your code", 2);
-			}
+		_itemDone: function (translate, item) {
+			var run = function (resolve) {
+				Zotero.debug("Translate: Saving item");
 				
-			const allowedObjects = ["complete", "attachments", "seeAlso", "creators", "tags", "notes"];
-			
-			// Create a new object here, so that we strip the "complete" property
-			var newItem = {};
-			var oldItem = item;
-			for(var i in item) {
-				var val = item[i];
-				if(i === "complete" || (!val && val !== 0)) continue;
-				
-				var type = typeof val;
-				var isObject = type === "object" || type === "xml" || type === "function",
-					shouldBeObject = allowedObjects.indexOf(i) !== -1;
-				if(isObject && !shouldBeObject) {
-					// Convert things that shouldn't be objects to objects
-					translate._debug("Translate: WARNING: typeof "+i+" is "+type+"; converting to string");
-					newItem[i] = val.toString();
-				} else if(shouldBeObject && !isObject) {
-					translate._debug("Translate: WARNING: typeof "+i+" is "+type+"; converting to array");
-					newItem[i] = [val];
-				} else if(type === "string") {
-					// trim strings
-					newItem[i] = val.trim();
-				} else {
-					newItem[i] = val;
+				// warn if itemDone called after translation completed
+				if(translate._complete) {
+					Zotero.debug("Translate: WARNING: Zotero.Item#complete() called after Zotero.done(); please fix your code", 2);
 				}
-			}
-			item = newItem;
-
-			// Clean empty creators
-			if (item.creators) {
-				for (var i=0; i<item.creators.length; i++) {
-					var creator = item.creators[i];
-					if (!creator.firstName && !creator.lastName) {
-						item.creators.splice(i, 1);
-						i--;
+					
+				const allowedObjects = ["complete", "attachments", "seeAlso", "creators", "tags", "notes"];
+				
+				// Create a new object here, so that we strip the "complete" property
+				var newItem = {};
+				var oldItem = item;
+				for(var i in item) {
+					var val = item[i];
+					if(i === "complete" || (!val && val !== 0)) continue;
+					
+					var type = typeof val;
+					var isObject = type === "object" || type === "xml" || type === "function",
+						shouldBeObject = allowedObjects.indexOf(i) !== -1;
+					if(isObject && !shouldBeObject) {
+						// Convert things that shouldn't be objects to objects
+						translate._debug("Translate: WARNING: typeof "+i+" is "+type+"; converting to string");
+						newItem[i] = val.toString();
+					} else if(shouldBeObject && !isObject) {
+						translate._debug("Translate: WARNING: typeof "+i+" is "+type+"; converting to array");
+						newItem[i] = [val];
+					} else if(type === "string") {
+						// trim strings
+						newItem[i] = val.trim();
+					} else {
+						newItem[i] = val;
 					}
 				}
-			}
-
-			// If we're not in a child translator, canonicalize tags
-			if (!translate._parentTranslator) {
-				if(item.tags) item.tags = translate._cleanTags(item.tags);
-			}
-			
-			// if we're not supposed to save the item or we're in a child translator,
-			// just return the item array
-			if(translate._libraryID === false || translate._parentTranslator) {
-				translate.newItems.push(item);
-				if(translate._parentTranslator && Zotero.isFx && !Zotero.isBookmarklet) {
-					// Copy object so it is accessible to child translator
-					item = translate._sandboxManager.copyObject(item);
-					item.complete = oldItem.complete;
+				item = newItem;
+	
+				// Clean empty creators
+				if (item.creators) {
+					for (var i=0; i<item.creators.length; i++) {
+						var creator = item.creators[i];
+						if (!creator.firstName && !creator.lastName) {
+							item.creators.splice(i, 1);
+							i--;
+						}
+					}
 				}
-				translate._runHandler("itemDone", item, item);
+	
+				// If we're not in a child translator, canonicalize tags
+				if (!translate._parentTranslator) {
+					if(item.tags) item.tags = translate._cleanTags(item.tags);
+				}
+				
+				// if we're not supposed to save the item or we're in a child translator,
+				// just return the item array
+				if(translate._libraryID === false || translate._parentTranslator) {
+					translate.newItems.push(item);
+					if(translate._parentTranslator && Zotero.isFx && !Zotero.isBookmarklet) {
+						// Copy object so it is accessible to child translator
+						item = translate._sandboxManager.copyObject(item);
+						item.complete = oldItem.complete;
+					}
+					let maybePromise = translate._runHandler("itemDone", item, item);
+					// DEBUG: Is this ever necessary?
+					if (maybePromise) {
+						return resolve ? maybePromise.then(resolve) : maybePromise;
+					}
+					if (resolve) {
+						resolve();
+					}
+					return;
+				}
+				
+				// We use this within the connector to keep track of items as they are saved
+				if(!item.id) item.id = Zotero.Utilities.randomString();
+				
+				if(item.attachments) {
+					var attachments = item.attachments;
+					for(var j=0; j<attachments.length; j++) {
+						var attachment = attachments[j];
+	
+						// Don't save documents as documents in connector, since we can't pass them around
+						if(Zotero.isConnector && attachment.document) {
+							attachment.url = attachment.document.documentURI || attachment.document.URL;
+							attachment.mimeType = "text/html";
+							delete attachment.document;
+						}
+	
+						// If we're not in a child translator, canonicalize tags
+						if (!translate._parentTranslator) {
+							if(attachment.tags !== undefined) attachment.tags = translate._cleanTags(attachment.tags);
+						}
+					}
+				}
+	
+				if(item.notes) {
+					var notes = item.notes;
+					for(var j=0; j<notes.length; j++) {
+						var note = notes[j];
+						if(!note) {
+							notes.splice(j--, 1);
+						} else if(typeof(note) != "object") {
+							// Convert to object
+							notes[j] = {"note":note.toString()}
+						}
+						// If we're not in a child translator, canonicalize tags
+						if (!translate._parentTranslator) {
+							if(note.tags !== undefined) note.tags = translate._cleanTags(note.tags);
+						}
+					}
+				}
+	
+				if (item.version) {
+					translate._debug("Translate: item.version is deprecated; set item.versionNumber instead");
+					item.versionNumber = item.version;
+				}
+	
+				if (item.accessDate) {
+					if (Zotero.Date.isSQLDateTime(item.accessDate)) {
+						translate._debug("Translate: Passing accessDate as SQL is deprecated; pass an ISO 8601 date instead");
+						item.accessDate = Zotero.Date.sqlToISO8601(item.accessDate);
+					}
+				}
+			
+				// Fire itemSaving event
+				translate._runHandler("itemSaving", item);
+				
+				translate._savingItems++;
+				
+				// For synchronous import (when Promise isn't available in the sandbox) and web
+				// translators, we queue saves
+				if (!resolve || translate instanceof Zotero.Translate.Web) {
+					Zotero.debug("Translate: Saving via queue");
+					translate.saveQueue.push(item);
+					if (resolve) {
+						resolve();
+					}
+				}
+				// For async import, save items immediately
+				else {
+					Zotero.debug("Translate: Saving now");
+					translate._saveItems([item]).then(resolve);
+				}
+			};
+			
+			if (!translate._sandboxManager.sandbox.Promise) {
+				Zotero.debug("Translate: Promise not available in sandbox in _itemDone()");
+				run();
 				return;
 			}
 			
-			// We use this within the connector to keep track of items as they are saved
-			if(!item.id) item.id = Zotero.Utilities.randomString();
-			
-			if(item.attachments) {
-				var attachments = item.attachments;
-				for(var j=0; j<attachments.length; j++) {
-					var attachment = attachments[j];
-
-					// Don't save documents as documents in connector, since we can't pass them around
-					if(Zotero.isConnector && attachment.document) {
-						attachment.url = attachment.document.documentURI || attachment.document.URL;
-						attachment.mimeType = "text/html";
-						delete attachment.document;
-					}
-
-					// If we're not in a child translator, canonicalize tags
-					if (!translate._parentTranslator) {
-						if(attachment.tags !== undefined) attachment.tags = translate._cleanTags(attachment.tags);
-					}
+			return new translate._sandboxManager.sandbox.Promise(function (resolve, reject) {
+				try {
+					run(resolve);
 				}
-			}
-
-			if(item.notes) {
-				var notes = item.notes;
-				for(var j=0; j<notes.length; j++) {
-					var note = notes[j];
-					if(!note) {
-						notes.splice(j--, 1);
-					} else if(typeof(note) != "object") {
-						// Convert to object
-						notes[j] = {"note":note.toString()}
-					}
-					// If we're not in a child translator, canonicalize tags
-					if (!translate._parentTranslator) {
-						if(note.tags !== undefined) note.tags = translate._cleanTags(note.tags);
-					}
+				catch (e) {
+					reject(e);
 				}
-			}
-
-			if (item.version) {
-				translate._debug("Translate: item.version is deprecated; set item.versionNumber instead");
-				item.versionNumber = item.version;
-			}
-
-			if (item.accessDate) {
-				if (Zotero.Date.isSQLDateTime(item.accessDate)) {
-					translate._debug("Translate: Passing accessDate as SQL is deprecated; pass an ISO 8601 date instead");
-					item.accessDate = Zotero.Date.sqlToISO8601(item.accessDate);
-				}
-			}
-		
-			// Fire itemSaving event
-			translate._runHandler("itemSaving", item);
-			
-			// TODO: This used to only be used for some modes. Since it's now used for everything with
-			// async saving, there's probably a bunch of code for the non-queued mode that can be removed.
-			translate.saveQueue.push(item);
-			translate._savingItems++;
+			});
 		},
 		
 		/**
@@ -1242,6 +1278,9 @@ Zotero.Translate.Base.prototype = {
 		this._currentState = "translate";
 		
 		this._libraryID = options.libraryID;
+		if (options.collections && !Array.isArray(options.collections)) {
+			throw new Error("'collections' must be an array");
+		}
 		this._collections = options.collections;
 		this._saveAttachments = options.saveAttachments === undefined || options.saveAttachments;
 		
@@ -1320,7 +1359,23 @@ Zotero.Translate.Base.prototype = {
 
 			// translate
 			try {
-				Function.prototype.apply.call(this._sandboxManager.sandbox["do" + this._entryFunctionSuffix], null, this._getParameters());
+				let maybePromise = Function.prototype.apply.call(
+					this._sandboxManager.sandbox["do" + this._entryFunctionSuffix],
+					null,
+					this._getParameters()
+				);
+				// doImport can return a promise to allow for incremental saves (via promise-returning
+				// item.complete() calls)
+				if (maybePromise) {
+					maybePromise
+					.then(
+						() => this.decrementAsyncProcesses("Zotero.Translate#translate()")
+					)
+					.catch((e) => {
+						this.complete(false, e)
+					});
+					return;
+				}
 			} catch (e) {
 				this.complete(false, e);
 				return false;
@@ -1579,11 +1634,14 @@ Zotero.Translate.Base.prototype = {
 				}
 			}
 			
-			// Trigger itemDone events
+			// Trigger itemDone events, waiting for them if they return promises
+			var maybePromises = [];
 			for(var i=0, nItems = items.length; i<nItems; i++) {
-				this._runHandler("itemDone", newItems[i], items[i]);
+				maybePromises.push(this._runHandler("itemDone", newItems[i], items[i]));
 			}
-			
+			return Zotero.Promise.all(maybePromises).then(() => newItems);
+		}.bind(this))
+		.then(function (newItems) {
 			// Specify that itemDone event was dispatched, so that we don't defer
 			// attachmentProgress notifications anymore
 			itemDoneEventsDispatched = true;
@@ -1612,10 +1670,12 @@ Zotero.Translate.Base.prototype = {
 		if(!this._savingItems && !this._savingAttachments.length && (!this._currentState || this._waitingForSave)) {
 			if(this.newCollections && this._itemSaver.saveCollections) {
 				var me = this;
-				this._itemSaver.saveCollections(this.newCollections).then(function (newCollections) {
+				this._itemSaver.saveCollections(this.newCollections)
+				.then(function (newCollections) {
 					me.newCollections = newCollections;
 					me._runHandler("done", true);
-				}, function (err) {
+				})
+				.catch(function (err) {
 					me._runHandler("error", err);
 					me._runHandler("done", false);
 				});
@@ -1767,10 +1827,10 @@ Zotero.Translate.Base.prototype = {
 		
 		if(this instanceof Zotero.Translate.Export || this instanceof Zotero.Translate.Import) {
 			src += "Zotero.Collection = function () {};"+
-			"Zotero.Collection.prototype.complete = function() { Zotero._collectionDone(this); };";
+			"Zotero.Collection.prototype.complete = function() { return Zotero._collectionDone(this); };";
 		}
 		
-		src += "Zotero.Item.prototype.complete = function() { Zotero._itemDone(this); }";
+		src += "Zotero.Item.prototype.complete = function() { return Zotero._itemDone(this); }";
 
 		this._sandboxManager.eval(src);
 		this._sandboxManager.importObject(this.Sandbox, this);
@@ -2119,27 +2179,36 @@ Zotero.Translate.Web.prototype.complete = function(returnValue, error) {
 	var oldState = this._currentState;
 	var errorString = Zotero.Translate.Base.prototype.complete.apply(this, [returnValue, error]);
 	
-	// Report translation failure if we failed
-	if(oldState == "translate" && errorString && !this._parentTranslator && this.translator.length
-		&& this.translator[0].inRepository && Zotero.Prefs.get("reportTranslationFailure")) {
-		// Don't report failure if in private browsing mode
-		if(Zotero.isFx && !Zotero.isBookmarklet && !Zotero.isStandalone && Components.classes["@mozilla.org/privatebrowsing;1"]) {
-			var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
-						.getService(Components.interfaces.nsIPrivateBrowsingService);
-			if (pbs.privateBrowsingEnabled) {
-				return;
-			}
-		}
-		
-		var translator = this.translator[0];
-		Zotero.getSystemInfo(function(info) {
-			var postBody = "id=" + encodeURIComponent(translator.translatorID) +
-						   "&lastUpdated=" + encodeURIComponent(translator.lastUpdated) +
-						   "&diagnostic=" + encodeURIComponent(info) +
-						   "&errorData=" + encodeURIComponent(errorString);
-			Zotero.HTTP.doPost(ZOTERO_CONFIG.REPOSITORY_URL + "report", postBody);
-		});
+	var promise;
+	if (Zotero.isConnector) {
+		promise = Zotero.Prefs.getAsync('reportTranslationFailure');
+	} else {
+		promise = Zotero.Promise.resolve(Zotero.Prefs.get("reportTranslationFailure"));
 	}
+	
+	return promise.then(function(reportTranslationFailure) {
+		// Report translation failure if we failed
+		if(oldState == "translate" && errorString && !this._parentTranslator && this.translator.length
+			&& this.translator[0].inRepository && reportTranslationFailure) {
+			// Don't report failure if in private browsing mode
+			if(Zotero.isFx && !Zotero.isBookmarklet && !Zotero.isStandalone && Components.classes["@mozilla.org/privatebrowsing;1"]) {
+				var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
+							.getService(Components.interfaces.nsIPrivateBrowsingService);
+				if (pbs.privateBrowsingEnabled) {
+					return;
+				}
+			}
+			
+			var translator = this.translator[0];
+			return Zotero.getSystemInfo().then(function(info) {
+				var postBody = "id=" + encodeURIComponent(translator.translatorID) +
+							   "&lastUpdated=" + encodeURIComponent(translator.lastUpdated) +
+							   "&diagnostic=" + encodeURIComponent(info) +
+							   "&errorData=" + encodeURIComponent(errorString);
+				return Zotero.HTTP.doPost(ZOTERO_CONFIG.REPOSITORY_URL + "report", postBody);
+			});
+		}	
+	}.bind(this));
 }
 
 /**
@@ -2251,10 +2320,13 @@ Zotero.Translate.Import.prototype._prepareTranslation = Zotero.Promise.method(fu
 	}
 
 	this._itemSaver = new Zotero.Translate.ItemSaver({
-		"libraryID":this._libraryID,
-		"collections": this._collections,
-		"attachmentMode":Zotero.Translate.ItemSaver[(this._saveAttachments ? "ATTACHMENT_MODE_FILE" : "ATTACHMENT_MODE_IGNORE")],
-		"baseURI":baseURI
+		libraryID: this._libraryID,
+		collections: this._collections,
+		attachmentMode: Zotero.Translate.ItemSaver[(this._saveAttachments ? "ATTACHMENT_MODE_FILE" : "ATTACHMENT_MODE_IGNORE")],
+		baseURI,
+		saveOptions: {
+			skipSelect: true
+		}
 	});
 	this.newItems = [];
 	this.newCollections = [];

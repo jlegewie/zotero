@@ -82,13 +82,13 @@ Zotero.Debug = new function () {
 		}
 	}
 	
-	this.log = function (message, level, stack) {
+	this.log = function (message, level, maxDepth, stack) {
 		if (!this.enabled) {
 			return;
 		}
 		
 		if (typeof message != 'string') {
-			message = Zotero.Utilities.varDump(message);
+			message = Zotero.Utilities.varDump(message, 0, maxDepth);
 		}
 		
 		if (!level) {
@@ -208,17 +208,23 @@ Zotero.Debug = new function () {
 				}
 			}
 		}
-		
-		if (Zotero.getErrors) {
-			return Zotero.getSystemInfo().then(function(sysInfo) {
+
+		return Zotero.getSystemInfo().then(function(sysInfo) {
+			if (Zotero.isConnector) {
+				return Zotero.Error.getErrors().then(function(errors) {
+					return errors.join('\n\n') +
+						"\n\n" + sysInfo + "\n\n" +
+						"=========================================================\n\n" +
+						output;	
+				});
+			}
+			else {
 				return Zotero.getErrors(true).join('\n\n') +
 					"\n\n" + sysInfo + "\n\n" +
 					"=========================================================\n\n" +
 					output;
-			});
-		} else {
-			return output;
-		}
+			}
+		});
 	});
 	
 	
@@ -247,7 +253,7 @@ Zotero.Debug = new function () {
 			this.clear();
 		}
 		_store = enable;
-		
+		this.updateEnabled();
 		this.storing = _store;
 	}
 	

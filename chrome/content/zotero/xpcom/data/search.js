@@ -302,8 +302,8 @@ Zotero.Search.prototype.addCondition = function (condition, operator, value, req
 		for (let part of parts) {
 			this.addCondition('blockStart');
 			
-			// If search string is 8 characters, see if this is a item key
-			if (operator == 'contains' && part.text.length == 8) {
+			// Allow searching for exact object key
+			if (operator == 'contains' && Zotero.Utilities.isValidObjectKey(part.text)) {
 				this.addCondition('key', 'is', part.text, false);
 			}
 			
@@ -603,7 +603,7 @@ Zotero.Search.prototype.search = Zotero.Promise.coroutine(function* (asTempTable
 			sql += ")";
 			
 			var res = yield Zotero.DB.valueQueryAsync(sql, this._sqlParams);
-			var ids = res ? res.split(",") : [];
+			var ids = res ? res.split(",").map(id => parseInt(id)) : [];
 			/*
 			// DEBUG: Should this be here?
 			//
@@ -653,7 +653,7 @@ Zotero.Search.prototype.search = Zotero.Promise.coroutine(function* (asTempTable
 						var sql = "SELECT GROUP_CONCAT(itemID) FROM items WHERE "
 							+ "itemID NOT IN (SELECT itemID FROM " + tmpTable + ")";
 						var res = yield Zotero.DB.valueQueryAsync(sql);
-						var scopeIDs = res ? res.split(",") : [];
+						var scopeIDs = res ? res.split(",").map(id => parseInt(id)) : [];
 					}
 					// If an ALL search, scan only items from the main search
 					else {
@@ -701,7 +701,7 @@ Zotero.Search.prototype.search = Zotero.Promise.coroutine(function* (asTempTable
 					if (joinMode == 'all' && !hasQuicksearch) {
 						var hash = {};
 						for (let i=0; i<fulltextWordIDs.length; i++) {
-							hash[fulltextWordIDs[i].id] = true;
+							hash[fulltextWordIDs[i]] = true;
 						}
 						
 						if (ids) {
@@ -791,15 +791,12 @@ Zotero.Search.prototype.search = Zotero.Promise.coroutine(function* (asTempTable
 			
 			sql = "SELECT GROUP_CONCAT(itemID) FROM items WHERE itemID IN (" + sql + ")";
 			var res = yield Zotero.DB.valueQueryAsync(sql);
-			var parentChildIDs = res ? res.split(",") : [];
+			var parentChildIDs = res ? res.split(",").map(id => parseInt(id)) : [];
 			
 			// Add parents and children to main ids
-			if (parentChildIDs) {
-				for (var i=0; i<parentChildIDs.length; i++) {
-					var id = parentChildIDs[i];
-					if (ids.indexOf(id) == -1) {
-						ids.push(id);
-					}
+			for (let id of parentChildIDs) {
+				if (!ids.includes(id)) {
+					ids.push(id);
 				}
 			}
 		}
@@ -928,61 +925,79 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 	
 	var conditions = [];
 	
-	for (var i in this._conditions){
-		var data = Zotero.SearchConditions.get(this._conditions[i]['condition']);
+	let lastCondition;
+	for (let condition of Object.values(this._conditions)) {
+		let name = condition.condition;
+		let conditionData = Zotero.SearchConditions.get(name);
 		
 		// Has a table (or 'savedSearch', which doesn't have a table but isn't special)
-		if (data.table || data.name == 'savedSearch' || data.name == 'tempTable') {
-			conditions.push({
-				name: data['name'],
-				alias: data['name']!=this._conditions[i]['condition']
-					? this._conditions[i]['condition'] : false,
-				table: data['table'],
-				field: data['field'],
-				operator: this._conditions[i]['operator'],
-				value: this._conditions[i]['value'],
-				flags: data['flags'],
-				required: this._conditions[i]['required']
-			});
+		if (conditionData.table || name == 'savedSearch' || name == 'tempTable') {
+			// For conditions with an inline filter using 'is'/'isNot', combine with last condition
+			// if the same
+			if (lastCondition
+					&& ((!lastCondition.alias && !condition.alias && name == lastCondition.name)
+						|| (lastCondition.alias && condition.alias && lastCondition.alias == condition.alias))
+					&& condition.operator.startsWith('is')
+					&& condition.operator == lastCondition.operator
+					&& conditionData.inlineFilter) {
+				if (!Array.isArray(lastCondition.value)) {
+					lastCondition.value = [lastCondition.value];
+				}
+				lastCondition.value.push(condition.value);
+				continue;
+			}
+			
+			lastCondition = {
+				name: conditionData.name,
+				alias: conditionData.name != name ? name : false,
+				table: conditionData.table,
+				field: conditionData.field,
+				operator: condition.operator,
+				value: condition.value,
+				flags: conditionData.flags,
+				required: condition.required,
+				inlineFilter: conditionData.inlineFilter
+			};
+			conditions.push(lastCondition);
 			
 			this._hasPrimaryConditions = true;
 		}
 		
 		// Handle special conditions
 		else {
-			switch (data['name']){
+			switch (conditionData.name) {
 				case 'deleted':
-					var deleted = this._conditions[i].operator == 'true';
+					var deleted = condition.operator == 'true';
 					continue;
 				
 				case 'noChildren':
-					var noChildren = this._conditions[i]['operator']=='true';
+					var noChildren = condition.operator == 'true';
 					continue;
 				
 				case 'includeParentsAndChildren':
-					var includeParentsAndChildren = this._conditions[i]['operator'] == 'true';
+					var includeParentsAndChildren = condition.operator == 'true';
 					continue;
 					
 				case 'includeParents':
-					var includeParents = this._conditions[i]['operator'] == 'true';
+					var includeParents = condition.operator == 'true';
 					continue;
 				
 				case 'includeChildren':
-					var includeChildren = this._conditions[i]['operator'] == 'true';
+					var includeChildren = condition.operator == 'true';
 					continue;
 				
 				case 'unfiled':
-					var unfiled = this._conditions[i]['operator'] == 'true';
+					var unfiled = condition.operator == 'true';
 					continue;
 				
 				// Search subcollections
 				case 'recursive':
-					var recursive = this._conditions[i]['operator']=='true';
+					var recursive = condition.operator == 'true';
 					continue;
 				
 				// Join mode ('any' or 'all')
 				case 'joinMode':
-					var joinMode = this._conditions[i]['operator'].toUpperCase();
+					var joinMode = condition.operator.toUpperCase();
 					continue;
 				
 				case 'fulltextContent':
@@ -998,7 +1013,7 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 					continue;
 			}
 			
-			throw ('Unhandled special condition ' + this._conditions[i]['condition']);
+			throw new Error('Unhandled special condition ' + name);
 		}
 	}
 	
@@ -1183,20 +1198,14 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 						}
 						
 						if (objectType == 'collection') {
-							var q = ['?'];
-							var p = [obj.id];
+							let ids = [obj.id];
 							
 							// Search descendent collections if recursive search
 							if (recursive){
-								var descendents = obj.getDescendents(false, 'collection');
-								for (let d of descendents) {
-									q.push('?');
-									p.push(d.id);
-								}
+								ids = ids.concat(obj.getDescendents(false, 'collection').map(d => d.id));
 							}
 							
-							condSQL += "collectionID IN (" + q.join() + ")";
-							condSQLParams = condSQLParams.concat(p);
+							condSQL += 'collectionID IN (' + ids.join(', ') + ')';
 						}
 						// Saved search
 						else {
@@ -1465,20 +1474,44 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 								
 							case 'is':
 							case 'isNot': // excluded with NOT IN above
-								// Automatically cast values which might
-								// have been stored as integers
-								if (condition.value && typeof condition.value == 'string'
-										&& condition.value.match(/^[1-9]+[0-9]*$/)) {
-									condSQL += ' LIKE ?';
-								}
-								else if (condition.value === null) {
-									condSQL += ' IS NULL';
-									break;
+								// If inline filter is available, embed value directly to get around
+								// the max bound parameter limit
+								if (condition.inlineFilter) {
+									let src = Array.isArray(condition.value)
+										? condition.value : [condition.value];
+									let values = [];
+									
+									for (let val of src) {
+										val = condition.inlineFilter(val);
+										if (val) {
+											values.push(val);
+										}
+									}
+									
+									if (!values.length) {
+										continue;
+									}
+									
+									condSQL += values.length > 1
+										? ` IN (${values.join(', ')})`
+										: `=${values[0]}`;
 								}
 								else {
-									condSQL += '=?';
+									// Automatically cast values which might
+									// have been stored as integers
+									if (condition.value && typeof condition.value == 'string'
+											&& condition.value.match(/^[1-9]+[0-9]*$/)) {
+										condSQL += ' LIKE ?';
+									}
+									else if (condition.value === null) {
+										condSQL += ' IS NULL';
+										break;
+									}
+									else {
+										condSQL += '=?';
+									}
+									condSQLParams.push(condition['value']);
 								}
-								condSQLParams.push(condition['value']);
 								break;
 							
 							case 'beginsWith':

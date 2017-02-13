@@ -111,7 +111,9 @@ Zotero.ProgressWindowSet = new function() {
  *
  * Pass the active window into the constructor
  */
-Zotero.ProgressWindow = function(_window = null) {
+Zotero.ProgressWindow = function(options = {}) {
+	var _window = options.window || null;
+	var _closeOnClick = typeof options.closeOnClick == 'undefined' ? true : options.closeOnClick;
 	var self = this,
 		_progressWindow = null,
 		_windowLoaded = false,
@@ -286,18 +288,15 @@ Zotero.ProgressWindow = function(_window = null) {
 	 * Creates a new object representing a line in the progressWindow. This is the OO
 	 * version of addLines() above.
 	 */
-	this.ItemProgress = _deferUntilWindowLoad(function(iconSrc, title, parentItemProgress) {
-		this._itemText = _progressWindow.document.createElement("description");
-		this._itemText.appendChild(_progressWindow.document.createTextNode(title));
-		this._itemText.setAttribute("class", "zotero-progress-item-label");
-		this._itemText.setAttribute("crop", "end");
+	this.ItemProgress = _deferUntilWindowLoad(function(iconSrc, text, parentItemProgress) {
+		this.setText(text);
 		
 		this._image = _progressWindow.document.createElement("hbox");
 		this._image.setAttribute("class", "zotero-progress-item-icon");
 		this._image.setAttribute("flex", 0);
 		this._image.style.width = "16px";
 		this._image.style.backgroundRepeat = "no-repeat";
-		this._image.style.backgroundSize = "16px";
+		this._image.style.backgroundSize = "auto 16px";
 		this.setIcon(iconSrc);
 		
 		this._hbox = _progressWindow.document.createElement("hbox");
@@ -338,7 +337,6 @@ Zotero.ProgressWindow = function(_window = null) {
 			this._image.style.backgroundImage = "url('chrome://zotero/skin/progress_arcs.png')";
 			this._image.style.backgroundPosition = "-"+(Math.round(percent/100*nArcs)*16)+"px 0";
 			this._hbox.style.opacity = percent/200+.5;
-			this._hbox.style.filter = "alpha(opacity = "+(percent/2+50)+")";
 		} else if(percent == 100) {
 			this._image.style.backgroundImage = "url('"+this._iconSrc+"')";
 			this._image.style.backgroundPosition = "";
@@ -355,6 +353,18 @@ Zotero.ProgressWindow = function(_window = null) {
 		this._image.style.backgroundImage = "url('"+iconSrc+"')";
 		this._image.style.backgroundPosition = "";
 		this._iconSrc = iconSrc;
+	});
+	
+	this.ItemProgress.prototype.setText = _deferUntilWindowLoad(function (text) {
+		if (!this._itemText) {
+			this._itemText = _progressWindow.document.createElement("description");
+		}
+		else {
+			this._itemText.textContent = '';
+		}
+		this._itemText.appendChild(_progressWindow.document.createTextNode(text));
+		this._itemText.setAttribute("class", "zotero-progress-item-label");
+		this._itemText.setAttribute("crop", "end");
 	});
 	
 	/**
@@ -541,7 +551,9 @@ Zotero.ProgressWindow = function(_window = null) {
 	}
 	
 	function _onMouseUp(e) {
-		self.close();
+		if (_closeOnClick) {
+			self.close();
+		}
 	}
 	
 	/**

@@ -681,6 +681,10 @@ Zotero.Schema = new function(){
 		//
 		var sql = "SELECT version FROM version WHERE schema=?";
 		var lastModTime = yield Zotero.DB.valueQueryAsync(sql, mode);
+		// Fix millisecond times (possible in 4.0?)
+		if (lastModTime > 9999999999) {
+			lastModTime = Math.round(lastModTime / 1000);
+		}
 		var cache = {};
 		
 		// XPI installation
@@ -718,7 +722,7 @@ Zotero.Schema = new function(){
 					for (let i = 0; i < dbCache.length; i++) {
 						let metadata = JSON.parse(dbCache[i]);
 						let id = metadata.translatorID;
-						if (index[id] && index[id].lastUpdated == metadata.lastUpdated) {
+						if (index[id] && index[id].lastUpdated <= metadata.lastUpdated) {
 							index[id].extract = false;
 						}
 					}
@@ -1010,8 +1014,9 @@ Zotero.Schema = new function(){
 			return;
 		}
 		
-		// If transaction already in progress, delay by ten minutes
-		yield Zotero.DB.waitForTransaction();
+		if (Zotero.DB.inTransaction()) {
+			yield Zotero.DB.waitForTransaction();
+		}
 		
 		// Get the last timestamp we got from the server
 		var lastUpdated = yield this.getDBVersion('repository');

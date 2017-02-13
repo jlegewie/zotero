@@ -51,7 +51,6 @@ var ZoteroPane = new function()
 	this.getSortedItems = getSortedItems;
 	this.getSortField = getSortField;
 	this.getSortDirection = getSortDirection;
-	this.loadURI = loadURI;
 	this.setItemsPaneMessage = setItemsPaneMessage;
 	this.clearItemsPaneMessage = clearItemsPaneMessage;
 	this.contextPopupShowing = contextPopupShowing;
@@ -155,7 +154,7 @@ var ZoteroPane = new function()
 		ZoteroPane_Local.setItemsPaneMessage(Zotero.getString('pane.items.loading'));
 		
 		// Add a default progress window
-		ZoteroPane_Local.progressWindow = new Zotero.ProgressWindow(window);
+		ZoteroPane_Local.progressWindow = new Zotero.ProgressWindow({ window });
 		
 		//Initialize collections view
 		ZoteroPane_Local.collectionsView = new Zotero.CollectionTreeView();
@@ -737,9 +736,6 @@ var ZoteroPane = new function()
 				case 'copySelectedItemsToClipboard':
 					ZoteroPane_Local.copySelectedItemsToClipboard();
 					break;
-				case 'importFromClipboard':
-					Zotero_File_Interface.importFromClipboard();
-					break;
 				case 'sync':
 					Zotero.Sync.Runner.sync();
 					break;
@@ -947,7 +943,9 @@ var ZoteroPane = new function()
 	
 	
 	this.newSearch = Zotero.Promise.coroutine(function* () {
-		yield Zotero.DB.waitForTransaction();
+		if (Zotero.DB.inTransaction()) {
+			yield Zotero.DB.waitForTransaction();
+		}
 		
 		var s = new Zotero.Search();
 		s.libraryID = this.getSelectedLibraryID();
@@ -1011,7 +1009,9 @@ var ZoteroPane = new function()
 	
 	
 	this.openLookupWindow = Zotero.Promise.coroutine(function* () {
-		yield Zotero.DB.waitForTransaction();
+		if (Zotero.DB.inTransaction()) {
+			yield Zotero.DB.waitForTransaction();
+		}
 		
 		if (!this.canEdit()) {
 			this.displayCannotEditLibraryMessage();
@@ -1379,8 +1379,10 @@ var ZoteroPane = new function()
 	 *                              be a better test for whether the item pane changed)
 	 */
 	this.itemSelected = function (event) {
-		return Zotero.spawn(function* () {
-			yield Zotero.DB.waitForTransaction();
+		return Zotero.Promise.coroutine(function* () {
+			if (Zotero.DB.inTransaction()) {
+				yield Zotero.DB.waitForTransaction();
+			}
 			
 			// Don't select item until items list has loaded
 			//
@@ -1389,7 +1391,9 @@ var ZoteroPane = new function()
 			this.itemsView.addEventListener('load', function () {
 				deferred.resolve();
 			});
-			yield deferred.promise;
+			if (deferred.promise.isPending()) {
+				yield deferred.promise;
+			}
 			
 			if (!this.itemsView || !this.itemsView.selection) {
 				Zotero.debug("Items view not available in itemSelected", 2);
@@ -1592,7 +1596,7 @@ var ZoteroPane = new function()
 			}
 			
 			return true;
-		}, this)
+		}.bind(this))()
 		.finally(function () {
 			return this.itemsView.onSelect();
 		}.bind(this));
@@ -1883,6 +1887,11 @@ var ZoteroPane = new function()
 	
 	this.deleteSelectedCollection = function (deleteItems) {
 		var collectionTreeRow = this.getCollectionTreeRow();
+		
+		// Don't allow deleting libraries
+		if (collectionTreeRow.isLibrary(true) && !collectionTreeRow.isFeed()) {
+			return;
+		}
 		
 		// Remove virtual duplicates collection
 		if (collectionTreeRow.isDuplicates()) {
@@ -3178,7 +3187,7 @@ var ZoteroPane = new function()
 	 *  (e.g. meta-click == new background tab, meta-shift-click == new front tab,
 	 *  shift-click == new window, no modifier == frontmost tab
 	 */
-	function loadURI(uris, event) {
+	this.loadURI = function (uris, event) {
 		if(typeof uris === "string") {
 			uris = [uris];
 		}
@@ -3193,9 +3202,22 @@ var ZoteroPane = new function()
 			if (Zotero.isStandalone) {
 				if(uri.match(/^https?/)) {
 					this.launchURL(uri);
-				} else {
-					Zotero.openInViewer(uri);
+					return;
 				}
+				
+				// Handle no-content zotero: URLs (e.g., zotero://select) without opening viewer
+				if (uri.startsWith('zotero:')) {
+					let nsIURI = Services.io.newURI(uri, null, null);
+					let handler = Components.classes["@mozilla.org/network/protocol;1?name=zotero"]
+						.createInstance(Components.interfaces.nsIProtocolHandler);
+					let extension = handler.wrappedJSObject.getExtension(nsIURI);
+					if (extension.noContent) {
+						extension.doAction(nsIURI);
+						return;
+					}
+				}
+				
+				Zotero.openInViewer(uri);
 				return;
 			}
 			
@@ -3686,7 +3708,9 @@ var ZoteroPane = new function()
 				//
 				// Duplicate newItem() checks here
 				//
-				yield Zotero.DB.waitForTransaction();
+				if (Zotero.DB.inTransaction()) {
+					yield Zotero.DB.waitForTransaction();
+				}
 				
 				// Currently selected row
 				if (row === undefined && this.collectionsView && this.collectionsView.selection) {
@@ -3806,7 +3830,9 @@ var ZoteroPane = new function()
 					//
 					// Duplicate newItem() checks here
 					//
-					yield Zotero.DB.waitForTransaction();
+					if (Zotero.DB.inTransaction()) {
+						yield Zotero.DB.waitForTransaction();
+					}
 					
 					// Currently selected row
 					if (row === undefined) {
@@ -3894,7 +3920,9 @@ var ZoteroPane = new function()
 	 * |link|      -- create web link instead of snapshot
 	 */
 	this.addAttachmentFromPage = Zotero.Promise.coroutine(function* (link, itemID) {
-		yield Zotero.DB.waitForTransaction();
+		if (Zotero.DB.inTransaction()) {
+			yield Zotero.DB.waitForTransaction();
+		}
 		
 		if (typeof itemID != 'number') {
 			throw new Error("itemID must be an integer");
