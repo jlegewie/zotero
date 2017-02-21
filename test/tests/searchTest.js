@@ -1,4 +1,40 @@
 describe("Zotero.Search", function() {
+	describe("#addCondition()", function () {
+		it("should convert old-style 'collection' condition value", function* () {
+			var col = yield createDataObject('collection');
+			var item = yield createDataObject('item', { collections: [col.id] });
+			
+			var s = new Zotero.Search();
+			s.libraryID = item.libraryID;
+			s.name = "Test";
+			s.addCondition('collection', 'is', '0_' + col.key);
+			var matches = yield s.search();
+			assert.sameMembers(matches, [item.id]);
+		});
+	});
+	
+	// This is for Zotero.Search._loadConditions()
+	describe("Loading", function () {
+		it("should convert old-style 'collection' condition value", function* () {
+			var col = yield createDataObject('collection');
+			var item = yield createDataObject('item', { collections: [col.id] });
+			
+			var s = new Zotero.Search();
+			s.libraryID = item.libraryID;
+			s.name = "Test";
+			s.addCondition('collection', 'is', col.key);
+			yield s.saveTx();
+			yield Zotero.DB.queryAsync(
+				"UPDATE savedSearchConditions SET value=? WHERE savedSearchID=? AND condition=?",
+				["0_" + col.key, s.id, 'collection']
+			);
+			yield s.reload(['conditions'], true);
+			var matches = yield s.search();
+			assert.sameMembers(matches, [item.id]);
+		});
+	});
+	
+	
 	describe("#save()", function () {
 		it("should fail without a name", function* () {
 			var s = new Zotero.Search;

@@ -852,12 +852,17 @@ Zotero.Items = function() {
 			libraryIDs.add(item.libraryID);
 		}
 		
+		var parentItemIDs = new Set();
 		items.forEach(item => {
 			item.setDeleted(true);
+			item.synced = false;
+			if (item.parentItemID) {
+				parentItemIDs.add(item.parentItemID);
+			}
 		});
 		yield Zotero.Utilities.Internal.forEachChunkAsync(ids, 250, Zotero.Promise.coroutine(function* (chunk) {
 			yield Zotero.DB.queryAsync(
-				"UPDATE items SET synced=1, clientDateModified=CURRENT_TIMESTAMP "
+				"UPDATE items SET synced=0, clientDateModified=CURRENT_TIMESTAMP "
 					+ `WHERE itemID IN (${chunk.map(id => parseInt(id)).join(", ")})`
 			);
 			yield Zotero.DB.queryAsync(
@@ -866,6 +871,11 @@ Zotero.Items = function() {
 			);
 		}.bind(this)));
 		
+		// Keep in sync with Zotero.Item::saveData()
+		for (let parentItemID of parentItemIDs) {
+			let parentItem = yield Zotero.Items.getAsync(parentItemID);
+			yield parentItem.reload(['primaryData', 'childItems'], true);
+		}
 		Zotero.Notifier.queue('trash', 'item', ids);
 		Array.from(libraryIDs).forEach(libraryID => {
 			Zotero.Notifier.queue('refresh', 'trash', libraryID);
@@ -983,8 +993,12 @@ Zotero.Items = function() {
 	});
 	
 	
+	
 	/**
-	 * Given API JSON for an item, return the best first creator, regardless of creator order
+	 * Given API JSON for an item, return the best single first creator, regardless of creator order
+	 *
+	 * Note that this is just a single creator, not the firstCreator field return from the
+	 * Zotero.Item::firstCreator property or this.getFirstCreatorFromData()
 	 *
 	 * @return {Object|false} - Creator in API JSON format, or false
 	 */
@@ -1004,6 +1018,48 @@ Zotero.Items = function() {
 			return false;
 		}
 		return firstCreator;
+	};
+	
+	
+	/**
+	 * Return a firstCreator string from internal creators data (from Zotero.Item::getCreators()).
+	 *
+	 * Used in Zotero.Item::getField() for unsaved items
+	 *
+	 * @param {Integer} itemTypeID
+	 * @param {Object} creatorData
+	 * @return {String}
+	 */
+	this.getFirstCreatorFromData = function (itemTypeID, creatorsData) {
+		if (creatorsData.length === 0) {
+			return "";
+		}
+		
+		var validCreatorTypes = [
+			Zotero.CreatorTypes.getPrimaryIDForType(itemTypeID),
+			Zotero.CreatorTypes.getID('editor'),
+			Zotero.CreatorTypes.getID('contributor')
+		];
+	
+		for (let creatorTypeID of validCreatorTypes) {
+			let matches = creatorsData.filter(data => data.creatorTypeID == creatorTypeID)
+			if (!matches.length) {
+				continue;
+			}
+			if (matches.length === 1) {
+				return matches[0].lastName;
+			}
+			if (matches.length === 2) {
+				let a = matches[0];
+				let b = matches[1];
+				return a.lastName + " " + Zotero.getString('general.and') + " " + b.lastName;
+			}
+			if (matches.length >= 3) {
+				return matches[0].lastName + " " + Zotero.getString('general.etAl');
+			}
+		}
+		
+		return "";
 	};
 	
 	

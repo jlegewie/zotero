@@ -1000,7 +1000,7 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 						}
 					);
 				}
-				batch.push(o.json);
+				batch.push(o);
 			}
 			
 			// No more non-failed requests
@@ -1011,8 +1011,10 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 			// Remove selected and skipped objects from queue
 			queue.splice(0, batch.length + numSkipped);
 			
+			let jsonBatch = batch.map(o => o.json);
+			
 			Zotero.debug("UPLOAD BATCH:");
-			Zotero.debug(batch);
+			Zotero.debug(jsonBatch);
 			
 			let results;
 			let numSuccessful = 0;
@@ -1022,7 +1024,7 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 				"POST",
 				libraryVersion,
 				objectType,
-				batch
+				jsonBatch
 			));
 			
 			// Mark successful and unchanged objects as synced with new version,
@@ -1038,8 +1040,8 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 					let key = state == 'successful' ? current.key : current;
 					let changed = changedObjects.has(key);
 					
-					if (key != batch[index].key) {
-						throw new Error("Key mismatch (" + key + " != " + batch[index].key + ")");
+					if (key != jsonBatch[index].key) {
+						throw new Error("Key mismatch (" + key + " != " + jsonBatch[index].key + ")");
 					}
 					
 					let obj = objectsClass.getByLibraryAndKey(this.libraryID, key);
@@ -1070,13 +1072,14 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 						// will guarantee that the item won't be redownloaded unnecessarily in the case of
 						// a full sync, because the version will be higher than whatever version is on the
 						// server.
-						batch[index].version = libraryVersion;
-						toCache.push(batch[index]);
+						jsonBatch[index].version = libraryVersion;
+						toCache.push(jsonBatch[index]);
 					}
 					
 					numSuccessful++;
 					// Remove from batch to mark as successful
 					delete batch[index];
+					delete jsonBatch[index];
 				}
 			}
 			yield Zotero.Sync.Data.Local.saveCacheObjects(
@@ -1107,8 +1110,34 @@ Zotero.Sync.Data.Engine.prototype._uploadObjects = Zotero.Promise.coroutine(func
 				if (data) {
 					e.data = data;
 				}
-				Zotero.logError("Error for " + objectType + " " + batch[index].key + " in "
+				Zotero.logError("Error for " + objectType + " " + jsonBatch[index].key + " in "
 					+ this.library.name + ":\n\n" + e);
+				
+				// If parent item is missing remotely and it isn't in the queue (which shouldn't happen),
+				// mark it as unsynced and add to queue
+				if (e.code == 400 && objectType == 'item' && data && data.parentItem) {
+					let parentItem = Zotero.Items.getByLibraryAndKey(this.libraryID, data.parentItem);
+					if (!parentItem) {
+						throw new Error(`Item ${this.libraryID}/${jsonBatch[index].key} references parent `
+							+ `item ${data.parentItem}, which doesn't exist`);
+					}
+					
+					let id = parentItem.id;
+					// If parent item isn't already in queue, mark it as unsynced and add it
+					if (!queue.find(o => o.id == id) && !batch.find(o => o.id == id)) {
+						yield Zotero.Sync.Data.Local.markObjectAsUnsynced(parentItem);
+						Zotero.logError(`Adding parent item ${data.parentItem} to upload queue`);
+						queue.push({
+							id,
+							json: null,
+							tries: 0,
+							failed: false
+						});
+						// Pretend that we were successful so syncing continues
+						numSuccessful++;
+						continue;
+					}
+				}
 				
 				// This shouldn't happen, because the upload request includes a library version and should
 				// prevent an outdated upload before the object version is checked. If it does, we need to

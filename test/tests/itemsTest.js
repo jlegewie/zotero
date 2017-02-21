@@ -92,19 +92,38 @@ describe("Zotero.Items", function () {
 		it("should send items to the trash", function* () {
 			var items = [];
 			items.push(
-				(yield createDataObject('item')),
-				(yield createDataObject('item')),
-				(yield createDataObject('item'))
+				(yield createDataObject('item', { synced: true })),
+				(yield createDataObject('item', { synced: true })),
+				(yield createDataObject('item', { synced: true }))
 			);
+			items.forEach(item => {
+				// Sanity-checked as true in itemTest#deleted
+				assert.isUndefined(item._changed.deleted);
+			});
 			var ids = items.map(item => item.id);
 			yield Zotero.Items.trashTx(ids);
 			items.forEach(item => {
 				assert.isTrue(item.deleted);
-				assert.isFalse(item.hasChanged());
+				// Item should be saved (can't use hasChanged() because that includes .synced)
+				assert.isUndefined(item._changed.deleted);
+				assert.isFalse(item.synced);
 			});
 			assert.equal((yield Zotero.DB.valueQueryAsync(
 				`SELECT COUNT(*) FROM deletedItems WHERE itemID IN (${ids})`
 			)), 3);
+			for (let item of items) {
+				assert.equal((yield Zotero.DB.valueQueryAsync(
+					`SELECT synced FROM items WHERE itemID=${item.id}`
+				)), 0);
+			}
+		});
+		
+		it("should update parent item when trashing child item", function* () {
+			var item = yield createDataObject('item');
+			var note = yield createDataObject('item', { itemType: 'note', parentID: item.id });
+			assert.lengthOf(item.getNotes(), 1);
+			yield Zotero.Items.trashTx([note.id]);
+			assert.lengthOf(item.getNotes(), 0);
 		});
 	});
 	
@@ -138,6 +157,167 @@ describe("Zotero.Items", function () {
 			//assert.equal(zp.itemsView.rowCount, 0)
 		})
 	})
+	
+	describe("#getFirstCreatorFromData()", function () {
+		it("should handle single eligible creator", function* () {
+			for (let creatorType of ['author', 'editor', 'contributor']) {
+				assert.equal(
+					Zotero.Items.getFirstCreatorFromData(
+						Zotero.ItemTypes.getID('book'),
+						[
+							{
+								fieldMode: 0,
+								firstName: 'A',
+								lastName: 'B',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							}
+						]
+					),
+					'B',
+					creatorType
+				);
+			}
+		});
+		
+		it("should ignore single ineligible creator", function* () {
+			assert.strictEqual(
+				Zotero.Items.getFirstCreatorFromData(
+					Zotero.ItemTypes.getID('book'),
+					[
+						{
+							fieldMode: 0,
+							firstName: 'A',
+							lastName: 'B',
+							creatorTypeID: Zotero.CreatorTypes.getID('translator')
+						}
+					]
+				),
+				''
+			);
+		});
+		
+		it("should handle single eligible creator after ineligible creator", function* () {
+			for (let creatorType of ['author', 'editor', 'contributor']) {
+				assert.equal(
+					Zotero.Items.getFirstCreatorFromData(
+						Zotero.ItemTypes.getID('book'),
+						[
+							{
+								fieldMode: 0,
+								firstName: 'A',
+								lastName: 'B',
+								creatorTypeID: Zotero.CreatorTypes.getID('translator')
+							},
+							{
+								fieldMode: 0,
+								firstName: 'C',
+								lastName: 'D',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							}
+						]
+					),
+					'D',
+					creatorType
+				);
+			}
+		});
+		
+		it("should handle two eligible creators", function* () {
+			for (let creatorType of ['author', 'editor', 'contributor']) {
+				assert.equal(
+					Zotero.Items.getFirstCreatorFromData(
+						Zotero.ItemTypes.getID('book'),
+						[
+							{
+								fieldMode: 0,
+								firstName: 'A',
+								lastName: 'B',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							},
+							{
+								fieldMode: 0,
+								firstName: 'C',
+								lastName: 'D',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							}
+						]
+					),
+					'B ' + Zotero.getString('general.and') + ' D',
+					creatorType
+				);
+			}
+		});
+		
+		it("should handle three eligible creators", function* () {
+			for (let creatorType of ['author', 'editor', 'contributor']) {
+				assert.equal(
+					Zotero.Items.getFirstCreatorFromData(
+						Zotero.ItemTypes.getID('book'),
+						[
+							{
+								fieldMode: 0,
+								firstName: 'A',
+								lastName: 'B',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							},
+							{
+								fieldMode: 0,
+								firstName: 'C',
+								lastName: 'D',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							},
+							{
+								fieldMode: 0,
+								firstName: 'E',
+								lastName: 'F',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							}
+						]
+					),
+					'B ' + Zotero.getString('general.etAl'),
+					creatorType
+				);
+			}
+		});
+		
+		it("should handle two eligible creators with intervening creators", function* () {
+			for (let creatorType of ['author', 'editor', 'contributor']) {
+				assert.equal(
+					Zotero.Items.getFirstCreatorFromData(
+						Zotero.ItemTypes.getID('book'),
+						[
+							{
+								fieldMode: 0,
+								firstName: 'A',
+								lastName: 'B',
+								creatorTypeID: Zotero.CreatorTypes.getID('translator')
+							},
+							{
+								fieldMode: 0,
+								firstName: 'C',
+								lastName: 'D',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							},
+							{
+								fieldMode: 0,
+								firstName: 'E',
+								lastName: 'F',
+								creatorTypeID: Zotero.CreatorTypes.getID('translator')
+							},
+							{
+								fieldMode: 0,
+								firstName: 'G',
+								lastName: 'H',
+								creatorTypeID: Zotero.CreatorTypes.getID(creatorType)
+							}
+						]
+					),
+					'D ' + Zotero.getString('general.and') + ' H',
+					creatorType
+				);
+			}
+		});
+	});
 	
 	describe("#getAsync()", function() {
 		it("should return Zotero.Item for item ID", function* () {
