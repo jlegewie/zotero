@@ -48,6 +48,7 @@ Zotero.Library = function(params = {}) {
 			'libraryVersion',
 			'storageVersion',
 			'lastSync',
+			'archived'
 		]
 	);
 	
@@ -68,7 +69,7 @@ Zotero.Library = function(params = {}) {
 // DB columns
 Zotero.defineProperty(Zotero.Library, '_dbColumns', {
 	value: Object.freeze([
-		'type', 'editable', 'filesEditable', 'version', 'storageVersion', 'lastSync'
+		'type', 'editable', 'filesEditable', 'version', 'storageVersion', 'lastSync', 'archived'
 	])
 });
 
@@ -195,7 +196,7 @@ Zotero.defineProperty(Zotero.Library.prototype, 'hasTrash', {
 
 // Create other accessors
 (function() {
-	let accessors = ['editable', 'filesEditable', 'storageVersion'];
+	let accessors = ['editable', 'filesEditable', 'storageVersion', 'archived'];
 	for (let i=0; i<accessors.length; i++) {
 		let prop = Zotero.Library._colToProp(accessors[i]);
 		Zotero.defineProperty(Zotero.Library.prototype, accessors[i], {
@@ -250,13 +251,20 @@ Zotero.Library.prototype._set = function(prop, val) {
 				throw new Error('Cannot create library of type "' + val + '"');
 			}
 			break;
+		
 		case '_libraryEditable':
 		case '_libraryFilesEditable':
 			if (['user', 'publications'].indexOf(this._libraryType) != -1) {
 				throw new Error('Cannot change ' + prop + ' for ' + this._libraryType + ' library');
 			}
 			val = !!val;
+			
+			// Setting 'editable' to false should also set 'filesEditable' to false
+			if (prop == '_libraryEditable' && !val) {
+				this._set('_libraryFilesEditable', false);
+			}
 			break;
+		
 		case '_libraryVersion':
 			var newVal = Number.parseInt(val, 10);
 			if (newVal != val) {
@@ -293,6 +301,16 @@ Zotero.Library.prototype._set = function(prop, val) {
 				val = new Date(Math.floor(val.getTime()/1000) * 1000);
 			}
 			break;
+		
+		case '_libraryArchived':
+			if (['user', 'publications', 'feeds'].indexOf(this._libraryType) != -1) {
+				throw new Error('Cannot change ' + prop + ' for ' + this._libraryType + ' library');
+			}
+			if (val && this._libraryEditable) {
+				throw new Error('Cannot set editable library as archived');
+			}
+			val = !!val;
+			break;
 	}
 	
 	if (this[prop] == val) return; // Unchanged
@@ -319,6 +337,7 @@ Zotero.Library.prototype._loadDataFromRow = function(row) {
 	this._libraryVersion = row._libraryVersion;
 	this._libraryStorageVersion = row._libraryStorageVersion;
 	this._libraryLastSync =  row._libraryLastSync !== 0 ? new Date(row._libraryLastSync * 1000) : false;
+	this._libraryArchived = !!row._libraryArchived;
 	
 	this._hasCollections = !!row.hasCollections;
 	this._hasSearches = !!row.hasSearches;
