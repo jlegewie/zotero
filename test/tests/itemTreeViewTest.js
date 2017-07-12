@@ -529,7 +529,115 @@ describe("Zotero.ItemTreeView", function() {
 			});
 			assert.isFalse(zp.itemsView.getRowIndexByID(item.id));
 		});
+		
+		describe("My Publications", function () {
+			before(function* () {
+				var libraryID = Zotero.Libraries.userLibraryID;
+				
+				var s = new Zotero.Search;
+				s.libraryID = libraryID;
+				s.addCondition('publications', 'true');
+				var ids = yield s.search();
+				
+				yield Zotero.Items.erase(ids);
+				
+				yield zp.collectionsView.selectByID("P" + libraryID);
+				yield waitForItemsLoad(win);
+				
+				// Make sure we're showing the intro text
+				var deck = win.document.getElementById('zotero-items-pane-content');
+				assert.equal(deck.selectedIndex, 1);
+			});
+			
+			it("should replace My Publications intro text with items list on item add", function* () {
+				var item = yield createDataObject('item');
+				
+				yield zp.collectionsView.selectByID("P" + item.libraryID);
+				yield waitForItemsLoad(win);
+				var iv = zp.itemsView;
+				
+				item.inPublications = true;
+				yield item.saveTx();
+				
+				var deck = win.document.getElementById('zotero-items-pane-content');
+				assert.equal(deck.selectedIndex, 0);
+				
+				assert.isNumber(iv.getRowIndexByID(item.id));
+			});
+			
+			it("should add new item to My Publications items list", function* () {
+				var item1 = createUnsavedDataObject('item');
+				item1.inPublications = true;
+				yield item1.saveTx();
+				
+				yield zp.collectionsView.selectByID("P" + item1.libraryID);
+				yield waitForItemsLoad(win);
+				var iv = zp.itemsView;
+				
+				var deck = win.document.getElementById('zotero-items-pane-content');
+				assert.equal(deck.selectedIndex, 0);
+				
+				var item2 = createUnsavedDataObject('item');
+				item2.inPublications = true;
+				yield item2.saveTx();
+				
+				assert.isNumber(iv.getRowIndexByID(item2.id));
+			});
+			
+			it("should add modified item to My Publications items list", function* () {
+				var item1 = createUnsavedDataObject('item');
+				item1.inPublications = true;
+				yield item1.saveTx();
+				var item2 = yield createDataObject('item');
+				
+				yield zp.collectionsView.selectByID("P" + item1.libraryID);
+				yield waitForItemsLoad(win);
+				var iv = zp.itemsView;
+				
+				var deck = win.document.getElementById('zotero-items-pane-content');
+				assert.equal(deck.selectedIndex, 0);
+				
+				assert.isFalse(iv.getRowIndexByID(item2.id));
+				
+				item2.inPublications = true;
+				yield item2.saveTx();
+				
+				assert.isNumber(iv.getRowIndexByID(item2.id));
+			});
+			
+			it("should show Show/Hide button for imported file attachment", function* () {
+				var item = yield createDataObject('item', { inPublications: true });
+				var attachment = yield importFileAttachment('test.png', { parentItemID: item.id });
+				
+				yield zp.collectionsView.selectByID("P" + item.libraryID);
+				yield waitForItemsLoad(win);
+				var iv = zp.itemsView;
+				
+				yield iv.selectItem(attachment.id);
+				
+				var box = win.document.getElementById('zotero-item-pane-top-buttons-my-publications');
+				assert.isFalse(box.hidden);
+			});
+			
+			it("shouldn't show Show/Hide button for linked file attachment", function* () {
+				var item = yield createDataObject('item', { inPublications: true });
+				var attachment = yield Zotero.Attachments.linkFromFile({
+					file: OS.Path.join(getTestDataDirectory().path, 'test.png'),
+					parentItemID: item.id
+				});
+				
+				yield zp.collectionsView.selectByID("P" + item.libraryID);
+				yield waitForItemsLoad(win);
+				var iv = zp.itemsView;
+				
+				yield iv.selectItem(attachment.id);
+				
+				var box = win.document.getElementById('zotero-item-pane-top-buttons-my-publications');
+				assert.isTrue(box.hidden);
+			});
+		});
 	})
+	
 	
 	describe("#drop()", function () {
 		var httpd;
@@ -566,8 +674,7 @@ describe("Zotero.ItemTreeView", function() {
 			let view = zp.itemsView;
 			yield view.selectItem(item3.id, true);
 			
-			var deferred = Zotero.Promise.defer();
-			view.addEventListener('select', () => deferred.resolve());
+			var promise = view.waitForSelect();
 			
 			view.drop(view.getRowIndexByID(item2.id), 0, {
 				dropEffect: 'copy',
@@ -585,7 +692,7 @@ describe("Zotero.ItemTreeView", function() {
 				mozItemCount: 1
 			})
 			
-			yield deferred.promise;
+			yield promise;
 			
 			// Old parent should be empty
 			assert.isFalse(view.isContainerOpen(view.getRowIndexByID(item1.id)));
@@ -606,8 +713,7 @@ describe("Zotero.ItemTreeView", function() {
 			let view = zp.itemsView;
 			yield view.selectItem(item3.id, true);
 			
-			var deferred = Zotero.Promise.defer();
-			view.addEventListener('select', () => deferred.resolve());
+			var promise = view.waitForSelect();
 			
 			view.drop(view.getRowIndexByID(item1.id), 0, {
 				dropEffect: 'copy',
@@ -625,7 +731,7 @@ describe("Zotero.ItemTreeView", function() {
 				mozItemCount: 1
 			})
 			
-			yield deferred.promise;
+			yield promise;
 			
 			// Old parent should be empty
 			assert.isFalse(view.isContainerOpen(view.getRowIndexByID(item2.id)));
@@ -640,8 +746,7 @@ describe("Zotero.ItemTreeView", function() {
 			var file = getTestDataDirectory();
 			file.append('test.png');
 			
-			var deferred = Zotero.Promise.defer();
-			itemsView.addEventListener('select', () => deferred.resolve());
+			var promise = itemsView.waitForSelect();
 			
 			itemsView.drop(0, -1, {
 				dropEffect: 'copy',
@@ -659,7 +764,7 @@ describe("Zotero.ItemTreeView", function() {
 				}
 			})
 			
-			yield deferred.promise;
+			yield promise;
 			var items = itemsView.getSelectedItems();
 			var path = yield items[0].getFilePathAsync();
 			assert.equal(
@@ -669,8 +774,7 @@ describe("Zotero.ItemTreeView", function() {
 		});
 		
 		it("should create a top-level attachment when a URL is dragged", function* () {
-			var deferred = Zotero.Promise.defer();
-			itemsView.addEventListener('select', () => deferred.resolve());
+			var promise = itemsView.waitForSelect();
 			
 			itemsView.drop(0, -1, {
 				dropEffect: 'copy',
@@ -688,7 +792,7 @@ describe("Zotero.ItemTreeView", function() {
 				mozItemCount: 1,
 			})
 			
-			yield deferred.promise;
+			yield promise;
 			var item = itemsView.getSelectedItems()[0];
 			assert.equal(item.getField('url'), pdfURL);
 			assert.equal(

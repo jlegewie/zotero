@@ -4,6 +4,9 @@ describe("Zotero_Browser", function () {
 	var win, collection;
 	
 	before(function* () {
+		this.timeout(60000);
+		yield Zotero.Translators.init();
+		
 		win = yield loadBrowserWindow();
 		collection = yield createDataObject('collection');
 	});
@@ -28,54 +31,6 @@ describe("Zotero_Browser", function () {
 		while (!button.classList.contains('translate'));
 	});
 	
-	
-	it("should save webpage to My Library if the Zotero pane hasn't been opened yet in a Firefox window", function* () {
-		var win = yield loadBrowserWindow();
-		
-		var uri = OS.Path.join(getTestDataDirectory().path, "snapshot", "index.html");
-		var deferred = Zotero.Promise.defer();
-		win.Zotero_Browser.addDetectCallback(() => deferred.resolve());
-		win.loadURI(uri);
-		yield deferred.promise;
-		
-		var promise = waitForWindow('chrome://zotero/content/progressWindow.xul', function (progressWin) {
-			assert.include(
-				progressWin.document.documentElement.textContent,
-				"Test"
-			);
-		});
-		yield win.Zotero_Browser.scrapeThisPage();
-		yield promise;
-		
-		win.close();
-	});
-	
-	it("should save journal article to My Library if the Zotero pane hasn't been opened yet in a Firefox window", function* () {
-		Zotero.Prefs.set('lastViewedFolder', collection.treeViewID);
-		
-		var win = yield loadBrowserWindow();
-		
-		var deferred = Zotero.Promise.defer();
-		win.Zotero_Browser.addDetectCallback(() => deferred.resolve());
-		var uri = OS.Path.join(
-			getTestDataDirectory().path, "metadata", "journalArticle-single.html"
-		);
-		win.loadURI(uri);
-		yield deferred.promise;
-		
-		var promise1 = waitForWindow('chrome://zotero/content/progressWindow.xul', function (progressWin) {});
-		var promise2 = waitForItemEvent('add');
-		yield win.Zotero_Browser.scrapeThisPage();
-		yield promise1;
-		var ids = yield promise2;
-		var items = Zotero.Items.get(ids);
-		assert.lengthOf(items, 1);
-		assert.equal(items[0].libraryID, Zotero.Libraries.userLibraryID);
-		assert.equal(Zotero.ItemTypes.getName(items[0].itemTypeID), 'journalArticle');
-		assert.lengthOf(items[0].getCollections(), 0);
-		
-		win.close();
-	});
 	
 	it("should save webpage to current collection", function* () {
 		var uri = OS.Path.join(getTestDataDirectory().path, "snapshot", "index.html");
@@ -190,7 +145,7 @@ describe("Zotero_Browser", function () {
 		yield deferred.promise;
 		
 		yield loadZoteroPane(win);
-		yield selectLibrary(win, Zotero.Libraries.publicationsLibraryID);
+		yield win.ZoteroPane.collectionsView.selectByID("P" + Zotero.Libraries.userLibraryID);
 		
 		var promise = waitForDialog(function (dialog) {
 			assert.include(
@@ -212,7 +167,7 @@ describe("Zotero_Browser", function () {
 		yield deferred.promise;
 		
 		yield loadZoteroPane(win);
-		yield selectLibrary(win, Zotero.Libraries.publicationsLibraryID);
+		yield win.ZoteroPane.collectionsView.selectByID("P" + Zotero.Libraries.userLibraryID);
 		
 		var promise = waitForDialog(function (dialog) {
 			assert.include(

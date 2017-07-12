@@ -124,7 +124,7 @@ Zotero.DataDirectory = {
 				}
 				// For other custom directories that don't exist, show not-found dialog
 				else {
-					Zotero.debug("Custom data directory ${file} not found", 1);
+					Zotero.debug(`Custom data directory ${file} not found`, 1);
 					throw { name: "NS_ERROR_FILE_NOT_FOUND" };
 				}
 			}
@@ -264,7 +264,9 @@ Zotero.DataDirectory = {
 				var fp = Components.classes["@mozilla.org/filepicker;1"]
 							.createInstance(nsIFilePicker);
 				fp.init(win, Zotero.getString('dataDir.selectDir'), nsIFilePicker.modeGetFolder);
-				fp.displayDirectory = Zotero.File.pathToFile(this.dir);
+				fp.displayDirectory = Zotero.File.pathToFile(
+					this._dir ? this._dir : OS.Path.dirname(this.defaultDir)
+				);
 				fp.appendFilters(nsIFilePicker.filterAll);
 				if (fp.show() == nsIFilePicker.returnOK) {
 					var file = fp.file;
@@ -428,6 +430,36 @@ Zotero.DataDirectory = {
 	},
 	
 	
+	isNewDirOnDifferentDrive: Zotero.Promise.coroutine(function* (oldDir, newDir) {
+		yield this.markForMigration(oldDir, true);
+		let oldMarkerFile = OS.Path.join(oldDir, this.MIGRATION_MARKER);
+		let testPath = OS.Path.join(newDir, '..', this.MIGRATION_MARKER);
+		try {
+			// Attempt moving the marker with noCopy
+			yield OS.File.move(oldMarkerFile, testPath, {noCopy: true});
+		} catch(e) {
+			yield OS.File.remove(oldMarkerFile);
+			
+			Components.classes["@mozilla.org/net/osfileconstantsservice;1"].
+				getService(Components.interfaces.nsIOSFileConstantsService).
+				init();	
+			if (e instanceof OS.File.Error) {
+				if (typeof e.unixErrno != "undefined") {
+					return e.unixErrno == OS.Constants.libc.EXDEV;
+				}
+				if (typeof e.winLastError != "undefined") {
+					// ERROR_NOT_SAME_DEVICE is undefined
+					// return e.winLastError == OS.Constants.Win.ERROR_NOT_SAME_DEVICE;
+					return e.winLastError == 17;
+				}
+			}
+			throw e;
+		}
+		yield OS.File.remove(testPath);
+		return false;
+	}),
+	
+	
 	/**
 	 * Determine if current data directory is in a legacy location
 	 */
@@ -435,6 +467,10 @@ Zotero.DataDirectory = {
 		// If (not default location) && (not useDataDir or within legacy location)
 		var currentDir = this.dir;
 		if (currentDir == this.defaultDir) {
+			return false;
+		}
+		
+		if (this.newDirOnDifferentDrive) {
 			return false;
 		}
 		
@@ -487,10 +523,22 @@ Zotero.DataDirectory = {
 			automatic = true;
 			
 			// Skip automatic migration if there's a non-empty directory at the new location
+			// TODO: Notify user
 			if ((yield OS.File.exists(newDir)) && !(yield Zotero.File.directoryIsEmpty(newDir))) {
 				Zotero.debug(`${newDir} exists and is non-empty -- skipping migration`);
 				return false;
 			}
+		}
+		
+		// Skip migration if new dir on different drive and prompt
+		if (yield this.isNewDirOnDifferentDrive(dataDir, newDir)) {
+			Zotero.debug(`New dataDir ${newDir} is on a different drive from ${dataDir} -- skipping migration`);
+			Zotero.DataDirectory.newDirOnDifferentDrive = true;
+			
+			let error = Zotero.getString(`dataDir.migration.failure.full.automatic.newDirOnDifferentDrive`, Zotero.clientName)
+				+ "\n\n"
+				+ Zotero.getString(`dataDir.migration.failure.full.automatic.text2`, Zotero.appName);
+			return this.fullMigrationFailurePrompt(dataDir, newDir, error);
 		}
 		
 		// Check for an existing pipe from other running versions of Zotero pointing at the same data
@@ -593,7 +641,7 @@ Zotero.DataDirectory = {
 				false,
 				null,
 				// Don't show message in a popup in Standalone if pane isn't ready
-				Zotero.iStandalone
+				Zotero.isStandalone
 			);
 		}
 		catch (e) {
@@ -607,31 +655,13 @@ Zotero.DataDirectory = {
 			Zotero.debug("Migration failed", 1);
 			Zotero.logError(e);
 			
-			let ps = Services.prompt;
-			let buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING)
-				+ (ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_IS_STRING);
-			let index = ps.confirmEx(null,
-				Zotero.getString('dataDir.migration.failure.title'),
-				Zotero.getString(`dataDir.migration.failure.full.${mode}.text1`, ZOTERO_CONFIG.CLIENT_NAME)
-					+ "\n\n"
-					+ e
-					+ "\n\n"
-					+ Zotero.getString(`dataDir.migration.failure.full.${mode}.text2`, Zotero.appName)
-					+ "\n\n"
-					+ Zotero.getString('dataDir.migration.failure.full.current', oldDir)
-					+ "\n\n"
-					+ Zotero.getString('dataDir.migration.failure.full.recommended', newDir),
-				buttonFlags,
-				Zotero.getString('dataDir.migration.failure.full.showCurrentDirectoryAndQuit', Zotero.appName),
-				Zotero.getString('general.notNow'),
-				null, null, {}
-			);
-			if (index == 0) {
-				yield Zotero.File.reveal(oldDir);
-				Zotero.skipLoading = true;
-				Zotero.Utilities.Internal.quitZotero();
-			}
-			return;
+			let error = Zotero.getString(`dataDir.migration.failure.full.${mode}.text1`, Zotero.clientName)
+				+ "\n\n"
+				+ e;
+				+ "\n\n"
+				+ Zotero.getString(`dataDir.migration.failure.full.${mode}.text2`, Zotero.appName);
+			
+			return this.fullMigrationFailurePrompt(oldDir, newDir, error);
 		}
 		
 		// Set data directory again
@@ -696,6 +726,29 @@ Zotero.DataDirectory = {
 				Zotero.Utilities.Internal.quitZotero();
 				return;
 			}
+		}
+	}),
+	
+	
+	fullMigrationFailurePrompt: Zotero.Promise.coroutine(function* (oldDir, newDir, error) {
+		let ps = Services.prompt;
+		let buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING)
+			+ (ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_IS_STRING);
+		let index = ps.confirmEx(null,
+			Zotero.getString('dataDir.migration.failure.title'),
+			error + "\n\n"
+				+ Zotero.getString('dataDir.migration.failure.full.current', oldDir)
+				+ "\n\n"
+				+ Zotero.getString('dataDir.migration.failure.full.recommended', newDir),
+			buttonFlags,
+			Zotero.getString('dataDir.migration.failure.full.showCurrentDirectoryAndQuit', Zotero.appName),
+			Zotero.getString('general.notNow'),
+			null, null, {}
+		);
+		if (index == 0) {
+			yield Zotero.File.reveal(oldDir);
+			Zotero.skipLoading = true;
+			Zotero.Utilities.Internal.quitZotero();
 		}
 	}),
 	

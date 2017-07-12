@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Εργαλεία">
 <!ENTITY toolsMenu.accesskey "Τ">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Πρόσθετα">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "Τ">
 <!ENTITY helpFeedbackPage.label "Επικοινωνία...">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Αναφέρετε Σφάλματα στο Zotero...">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Έλεγχος για ενημερώσεις...">

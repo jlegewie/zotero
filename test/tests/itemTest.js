@@ -207,6 +207,13 @@ describe("Zotero.Item", function () {
 			}
 		})
 		
+		it("should accept SQL accessDate without time", function* () {
+			var item = createUnsavedDataObject('item');
+			var date = "2017-04-05";
+			item.setField("accessDate", date);
+			assert.strictEqual(item.getField('accessDate'), date);
+		});
+		
 		it("should ignore unknown accessDate values", function* () {
 			var fields = {
 				accessDate: "foo"
@@ -335,6 +342,57 @@ describe("Zotero.Item", function () {
 			assert.isFalse(item.deleted);
 		})
 	})
+	
+	describe("#inPublications", function () {
+		it("should add item to publications table", function* () {
+			var item = yield createDataObject('item');
+			item.inPublications = true;
+			yield item.saveTx();
+			assert.ok(item.inPublications);
+			assert.equal(
+				(yield Zotero.DB.valueQueryAsync(
+					"SELECT COUNT(*) FROM publicationsItems WHERE itemID=?", item.id)),
+				1
+			);
+		})
+		
+		it("should be set to false after save", function* () {
+			var collection = yield createDataObject('collection');
+			var item = createUnsavedDataObject('item');
+			item.inPublications = false;
+			yield item.saveTx();
+			
+			item.inPublications = false;
+			yield item.saveTx();
+			assert.isFalse(item.inPublications);
+			assert.equal(
+				(yield Zotero.DB.valueQueryAsync(
+					"SELECT COUNT(*) FROM publicationsItems WHERE itemID=?", item.id)),
+				0
+			);
+		});
+		
+		it("should be invalid for linked-file attachments", function* () {
+			var item = yield createDataObject('item', { inPublications: true });
+			var attachment = yield Zotero.Attachments.linkFromFile({
+				file: OS.Path.join(getTestDataDirectory().path, 'test.png'),
+				parentItemID: item.id
+			});
+			attachment.inPublications = true;
+			var e = yield getPromiseError(attachment.saveTx());
+			assert.ok(e);
+			assert.include(e.message, "Linked-file attachments cannot be added to My Publications");
+		});
+		
+		it("should be invalid for group library items", function* () {
+			var group = yield getGroup();
+			var item = yield createDataObject('item', { libraryID: group.libraryID });
+			item.inPublications = true;
+			var e = yield getPromiseError(item.saveTx());
+			assert.ok(e);
+			assert.equal(e.message, "Only items in user libraries can be added to My Publications");
+		});
+	});
 	
 	describe("#parentID", function () {
 		it("should create a child note", function* () {
@@ -1008,7 +1066,47 @@ describe("Zotero.Item", function () {
 			assert.ok(e);
 			assert.equal(e.message, "Item type must be set before saving");
 		})
+		
+		it("should reload child items for parent items", function* () {
+			var item = yield createDataObject('item');
+			var attachment = yield importFileAttachment('test.png', { parentItemID: item.id });
+			var note1 = new Zotero.Item('note');
+			note1.parentItemID = item.id;
+			yield note1.saveTx();
+			var note2 = new Zotero.Item('note');
+			note2.parentItemID = item.id;
+			yield note2.saveTx();
+			
+			assert.lengthOf(item.getAttachments(), 1);
+			assert.lengthOf(item.getNotes(), 2);
+			
+			note2.parentItemID = null;
+			yield note2.saveTx();
+			
+			assert.lengthOf(item.getAttachments(), 1);
+			assert.lengthOf(item.getNotes(), 1);
+		});
 	})
+	
+	
+	describe("#_eraseData()", function () {
+		it("should remove relations pointing to this item", function* () {
+			var item1 = yield createDataObject('item');
+			var item2 = yield createDataObject('item');
+			item1.addRelatedItem(item2);
+			yield item1.saveTx();
+			item2.addRelatedItem(item1);
+			yield item2.saveTx();
+			
+			yield item1.eraseTx();
+			
+			assert.lengthOf(item2.relatedItems, 0);
+			yield assert.eventually.equal(
+				Zotero.DB.valueQueryAsync("SELECT COUNT(*) FROM itemRelations WHERE itemID=?", item2.id),
+				0
+			);
+		});
+	});
 	
 	
 	describe("#multiDiff", function () {
@@ -1168,6 +1266,25 @@ describe("Zotero.Item", function () {
 				assert.notProperty(json, "filename");
 				assert.notProperty(json, "path");
 			});
+			
+			it("should include inPublications=true for items in My Publications", function* () {
+				var item = createUnsavedDataObject('item');
+				item.inPublications = true;
+				var json = item.toJSON();
+				assert.propertyVal(json, "inPublications", true);
+			});
+			
+			it("shouldn't include inPublications for items not in My Publications in patch mode", function* () {
+				var item = createUnsavedDataObject('item');
+				var json = item.toJSON();
+				assert.notProperty(json, "inPublications");
+			});
+			
+			it("should include inPublications=false for items not in My Publications in full mode", function* () {
+				var item = createUnsavedDataObject('item');
+				var json = item.toJSON({ mode: 'full' });
+				assert.property(json, "inPublications", false);
+			});
 		})
 		
 		describe("'full' mode", function () {
@@ -1255,6 +1372,40 @@ describe("Zotero.Item", function () {
 				assert.isFalse(json.parentItem);
 			});
 			
+			it("should include relations if related item was removed", function* () {
+				var item1 = yield createDataObject('item');
+				var item2 = yield createDataObject('item');
+				var item3 = yield createDataObject('item');
+				var item4 = yield createDataObject('item');
+				
+				var relateItems = Zotero.Promise.coroutine(function* (i1, i2) {
+					yield Zotero.DB.executeTransaction(function* () {
+						i1.addRelatedItem(i2);
+						yield i1.save({
+							skipDateModifiedUpdate: true
+						});
+						i2.addRelatedItem(i1);
+						yield i2.save({
+							skipDateModifiedUpdate: true
+						});
+					});
+				});
+				
+				yield relateItems(item1, item2);
+				yield relateItems(item1, item3);
+				yield relateItems(item1, item4);
+				
+				var patchBase = item1.toJSON();
+				
+				item1.removeRelatedItem(item2);
+				yield item1.saveTx();
+				item2.removeRelatedItem(item1);
+				yield item2.saveTx();
+				
+				var json = item1.toJSON({ patchBase });
+				assert.sameMembers(json.relations['dc:relation'], item1.getRelations()['dc:relation']);
+			});
+			
 			it("shouldn't clear storage properties from original in .skipStorageProperties mode", function* () {
 				var item = new Zotero.Item('attachment');
 				item.attachmentLinkMode = 'imported_file';
@@ -1297,6 +1448,22 @@ describe("Zotero.Item", function () {
 			assert.strictEqual(item.getField('accessDate'), '');
 		});
 		
+		it("should remove child item from collection if 'collections' property not provided", function* () {
+			var collection = yield createDataObject('collection');
+			// Create standalone attachment in collection
+			var attachment = yield importFileAttachment('test.png', { collections: [collection.id] });
+			var item = yield createDataObject('item', { collections: [collection.id] });
+			
+			var json = attachment.toJSON();
+			json.path = 'storage:test2.png';
+			// Add to parent, which implicitly removes from collection
+			json.parentItem = item.key;
+			delete json.collections;
+			Zotero.debug(json);
+			attachment.fromJSON(json);
+			yield attachment.save();
+		});
+		
 		it("should ignore unknown fields", function* () {
 			var json = {
 				itemType: "journalArticle",
@@ -1318,6 +1485,20 @@ describe("Zotero.Item", function () {
 			var item = new Zotero.Item;
 			item.fromJSON(json);
 			assert.equal(item.getField('accessDate'), '2015-06-07 20:56:00');
+			assert.equal(item.dateAdded, '2015-06-07 20:57:00');
+			assert.equal(item.dateModified, '2015-06-07 20:58:00');
+		})
+		
+		it("should accept ISO 8601 access date without time", function* () {
+			var json = {
+				itemType: "journalArticle",
+				accessDate: "2015-06-07",
+				dateAdded: "2015-06-07T20:57:00Z",
+				dateModified: "2015-06-07T20:58:00Z",
+			};
+			var item = new Zotero.Item;
+			item.fromJSON(json);
+			assert.equal(item.getField('accessDate'), '2015-06-07');
 			assert.equal(item.dateAdded, '2015-06-07 20:57:00');
 			assert.equal(item.dateModified, '2015-06-07 20:58:00');
 		})

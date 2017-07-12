@@ -460,6 +460,8 @@ Zotero.Utilities = {
 	 */
 	"htmlSpecialChars":function(str) {
 		if (str && typeof str != 'string') {
+			Zotero.debug('#htmlSpecialChars: non-string arguments are deprecated. Update your code',
+				1, undefined, true);
 			str = str.toString();
 		}
 		
@@ -738,21 +740,11 @@ Zotero.Utilities = {
 	/**
 	 * Return new array with duplicate values removed
 	 *
-	 * From http://stackoverflow.com/a/1961068
-	 *
 	 * @param	{Array}		array
 	 * @return	{Array}
 	 */
-	"arrayUnique":function(arr) {
-		var u = {}, a = [];
-		for (var i=0, l=arr.length; i<l; ++i){
-			if (u.hasOwnProperty(arr[i])) {
-				continue;
-			}
-			a.push(arr[i]);
-			u[arr[i]] = 1;
-		}
-		return a;
+	arrayUnique: function (arr) {
+		return [...new Set(arr)];
 	},
 	
 	/**
@@ -873,6 +865,26 @@ Zotero.Utilities = {
 		}
 		return str + '\u2026' + (countChars ? ' (' + str.length + ' chars)' : '');
 	},
+	
+	
+	/**
+	 * Return the proper plural form of a string
+	 *
+	 * For now, this is only used for debug output in English.
+	 *
+	 * @param {Integer} num
+	 * @param {String[]|String} forms - If an array, an array of plural forms (e.g., ['object', 'objects']);
+	 *     currently only the two English forms are supported, for 1 and 0/many. If a single string,
+	 *     's' is added automatically for 0/many.
+	 * @return {String}
+	 */
+	pluralize: function (num, forms) {
+		if (typeof forms == 'string') {
+			forms = [forms, forms + 's'];
+		}
+		return num == 1 ? forms[0] : forms[1];
+	},
+	
 	
 	/**
 	  * Port of PHP's number_format()
@@ -1431,10 +1443,24 @@ Zotero.Utilities = {
 				header = (obj.name ? obj.name + ' ' : '') + 'Exception';
 			}
 			
-			return header + ': '
-				+ (obj.message ? ('' + obj.message).replace(/^/gm, level_padding).trim() : '')
-				+ '\n\n'
-				+ (obj.stack ? obj.stack.trim().replace(/^(?=.)/gm, level_padding) : '');
+			let msg = (obj.message ? ('' + obj.message).replace(/^/gm, level_padding).trim() : '');
+			if (obj.stack) {
+				let stack = obj.stack.trim().replace(/^(?=.)/gm, level_padding);
+				
+				msg += '\n\n';
+				
+				// At least with Zotero.HTTP.UnexpectedStatusException, the stack contains "Error:"
+				// and the message in addition to the trace. I'm not sure what's causing that
+				// (Bluebird?), but fix it here.
+				if (obj.stack.startsWith('Error:')) {
+					msg += obj.stack.replace('Error: ' + obj.message + '\n', '');
+				}
+				else {
+					msg += stack;
+				}
+			}
+			
+			return header + ': ' + msg;
 		}
 		
 		// Only dump single level for nsIDOMNode objects (including document)
@@ -1498,138 +1524,6 @@ Zotero.Utilities = {
 	},
 	
 	/**
-	 * Converts an item from toArray() format to an array of items in
-	 * the content=json format used by the server
-	 */
-	"itemToServerJSON":function(item) {
-		var newItem = {
-				"itemKey":Zotero.Utilities.generateObjectKey(),
-				"itemVersion":0
-			},
-			newItems = [newItem];
-		
-		var typeID = Zotero.ItemTypes.getID(item.itemType);
-		if(!typeID) {
-			Zotero.debug("itemToServerJSON: Invalid itemType "+item.itemType+"; using webpage");
-			item.itemType = "webpage";
-			typeID = Zotero.ItemTypes.getID(item.itemType);
-		}
-		
-		var fieldID, itemFieldID;
-		for(var field in item) {
-			if(field === "complete" || field === "itemID" || field === "attachments"
-					|| field === "seeAlso") continue;
-			
-			var val = item[field];
-			
-			if(field === "itemType") {
-				newItem[field] = val;
-			} else if(field === "creators") {
-				// normalize creators
-				var n = val.length;
-				var newCreators = newItem.creators = [];
-				for(var j=0; j<n; j++) {
-					var creator = val[j];
-					
-					if(!creator.firstName && !creator.lastName) {
-						Zotero.debug("itemToServerJSON: Silently dropping empty creator");
-						continue;
-					}
-					
-					// Single-field mode
-					if (!creator.firstName || (creator.fieldMode && creator.fieldMode == 1)) {
-						var newCreator = {
-							name: creator.lastName
-						};
-					}
-					// Two-field mode
-					else {
-						var newCreator = {
-							firstName: creator.firstName,
-							lastName: creator.lastName
-						};
-					}
-					
-					// ensure creatorType is present and valid
-					if(creator.creatorType) {
-						if(Zotero.CreatorTypes.getID(creator.creatorType)) {
-							newCreator.creatorType = creator.creatorType;
-						} else {
-							Zotero.debug("itemToServerJSON: Invalid creator type "+creator.creatorType+"; falling back to author");
-						}
-					}
-					if(!newCreator.creatorType) newCreator.creatorType = "author";
-					
-					newCreators.push(newCreator);
-				}
-			} else if(field === "tags") {
-				// normalize tags
-				var n = val.length;
-				var newTags = newItem.tags = [];
-				for(var j=0; j<n; j++) {
-					var tag = val[j];
-					if(typeof tag === "object") {
-						if(tag.tag) {
-							tag = tag.tag;
-						} else if(tag.name) {
-							tag = tag.name;
-						} else {
-							Zotero.debug("itemToServerJSON: Discarded invalid tag");
-							continue;
-						}
-					} else if(tag === "") {
-						continue;
-					}
-					newTags.push({"tag":tag.toString(), "type":1});
-				}
-			} else if(field === "notes") {
-				// normalize notes
-				var n = val.length;
-				for(var j=0; j<n; j++) {
-					var note = val[j];
-					if(typeof note === "object") {
-						if(!note.note) {
-							Zotero.debug("itemToServerJSON: Discarded invalid note");
-							continue;
-						}
-						note = note.note;
-					}
-					newItems.push({"itemType":"note", "parentItem":newItem.itemKey,
-						"note":note.toString()});
-				}
-			} else if((fieldID = Zotero.ItemFields.getID(field))) {
-				// if content is not a string, either stringify it or delete it
-				if(typeof val !== "string") {
-					if(val || val === 0) {
-						val = val.toString();
-					} else {
-						continue;
-					}
-				}
-				
-				// map from base field if possible
-				if((itemFieldID = Zotero.ItemFields.getFieldIDFromTypeAndBase(typeID, fieldID))) {
-					var fieldName = Zotero.ItemFields.getName(itemFieldID);
-					// Only map if item field does not exist
-					if(fieldName !== field && !newItem[fieldName]) newItem[fieldName] = val;
-					continue;	// already know this is valid
-				}
-				
-				// if field is valid for this type, set field
-				if(Zotero.ItemFields.isValidForType(fieldID, typeID)) {
-					newItem[field] = val;
-				} else {
-					Zotero.debug("itemToServerJSON: Discarded field "+field+": field not valid for type "+item.itemType, 3);
-				}
-			} else {
-				Zotero.debug("itemToServerJSON: Discarded unknown field "+field, 3);
-			}
-		}
-		
-		return newItems;
-	},
-	
-	/**
 	 * Converts an item from toArray() format to citeproc-js JSON
 	 * @param {Zotero.Item} zoteroItem
 	 * @return {Object|Promise<Object>} A CSL item, or a promise for a CSL item if a Zotero.Item
@@ -1638,7 +1532,9 @@ Zotero.Utilities = {
 	"itemToCSLJSON":function(zoteroItem) {
 		// If a Zotero.Item was passed, convert it to the proper format (skipping child items) and
 		// call this function again with that object
-		if (zoteroItem instanceof Zotero.Item) {
+		//
+		// (Zotero.Item won't be defined in translation-server)
+		if (typeof Zotero.Item !== 'undefined' && zoteroItem instanceof Zotero.Item) {
 			return this.itemToCSLJSON(
 				Zotero.Utilities.Internal.itemToExportFormat(zoteroItem, false, true)
 			);
@@ -1793,7 +1689,7 @@ Zotero.Utilities = {
 	 * @param {Object} cslItem
 	 */
 	"itemFromCSLJSON":function(item, cslItem) {
-		var isZoteroItem = item instanceof Zotero.Item,
+		var isZoteroItem = !!item.setType,
 			zoteroType;
 		
 		// Some special cases to help us map item types correctly

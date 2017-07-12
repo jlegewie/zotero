@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Verktyg">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Tillägg">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "Skicka återkoppling...">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Rapportera fel till Zotero...">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Sök efter uppdateringar...">

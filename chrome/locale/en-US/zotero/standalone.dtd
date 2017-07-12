@@ -45,6 +45,8 @@
 <!--TOOLS MENU-->
 <!ENTITY toolsMenu.label           "Tools"> 
 <!ENTITY toolsMenu.accesskey           "T"> 
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label				"Add-ons">
 
 <!--WINDOW MENU-->
@@ -70,6 +72,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey  "T">
 <!ENTITY helpFeedbackPage.label      "Submit Feedback…">
 <!ENTITY helpFeedbackPage.accesskey  "S">
+
 <!ENTITY helpReportErrors.label      "Report Errors to Zotero…">
 <!ENTITY helpReportErrors.accesskey  "R">
 <!ENTITY helpCheckForUpdates.label      "Check for Updates…">

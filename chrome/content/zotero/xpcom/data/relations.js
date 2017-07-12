@@ -165,14 +165,14 @@ Zotero.Relations = new function () {
 	};
 	
 	
-	this.updateUser = Zotero.Promise.coroutine(function* (toUserID) {
-		var fromUserID = Zotero.Users.getCurrentUserID();
+	this.updateUser = Zotero.Promise.coroutine(function* (fromUserID, toUserID) {
 		if (!fromUserID) {
 			fromUserID = "local/" + Zotero.Users.getLocalUserKey();
 		}
 		if (!toUserID) {
 			throw new Error("Invalid target userID " + toUserID);
 		}
+		
 		Zotero.DB.requireTransaction();
 		for (let type of _types) {
 			let sql = `SELECT DISTINCT object FROM ${type}Relations WHERE object LIKE ?`;
@@ -232,7 +232,7 @@ Zotero.Relations = new function () {
 				// removing
 				if (uri.indexOf(prefix) != -1
 						&& uri.indexOf("/" + type + "s/") != -1
-						&& !Zotero.URI[getFunc](uri)) {
+						&& !(yield Zotero.URI[getFunc](uri))) {
 					if (!objects[row.id]) {
 						objects[row.id] = yield objectsClass.getAsync(row.id, { noCache: true });
 					}

@@ -335,8 +335,8 @@ Zotero.File = new function(){
 	/*
 	 * Return a promise for the contents of a URL as a string
 	 */
-	this.getContentsFromURLAsync = function (url) {
-		return Zotero.HTTP.request("GET", url, { responseType: "text" })
+	this.getContentsFromURLAsync = function (url, options={}) {
+		return Zotero.HTTP.request("GET", url, Object.assign(options, { responseType: "text" }))
 		.then(function (xmlhttp) {
 			return xmlhttp.response;
 		});
@@ -528,12 +528,12 @@ Zotero.File = new function(){
 			if (!(e instanceof OS.File.Error)) {
 				return;
 			}
-			
-			if (!Zotero.isWin) {
-				switch (e.unixErrno) {
-				case OS.Constants.libc.ENOSPC:
-					throw e;
-				}
+			Components.classes["@mozilla.org/net/osfileconstantsservice;1"]
+				.getService(Components.interfaces.nsIOSFileConstantsService)
+				.init();
+			if ((e.unixErrno !== undefined && e.unixErrno == OS.Constants.libc.ENOSPC)
+					|| (e.winLastError !== undefined && e.winLastError == OS.Constants.libc.ENOSPC)) {
+				throw e;
 			}
 		}
 		

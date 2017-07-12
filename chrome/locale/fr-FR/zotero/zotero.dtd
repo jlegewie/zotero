@@ -156,6 +156,7 @@
 <!ENTITY zotero.tagSelector.loadingTags "Chargement des marqueurs…">
 <!ENTITY zotero.tagSelector.showAutomatic "Afficher les marqueurs ajoutés automatiquement">
 <!ENTITY zotero.tagSelector.displayAllInLibrary "Afficher tous les marqueurs de cette bibliothèque">
+<!ENTITY zotero.tagSelector.deleteAutomaticInLibrary "Supprimer de cette bibliothèque les marqueurs ajoutés automatiquement">
 <!ENTITY zotero.tagSelector.clearAll "Tout désélectionner">
 <!ENTITY zotero.tagSelector.assignColor "Attribuer une couleur…">
 <!ENTITY zotero.tagSelector.renameTag "Renommer le marqueur…">
@@ -224,22 +225,20 @@
 <!ENTITY zotero.integration.prefs.footnotes.label "notes de bas de page">
 <!ENTITY zotero.integration.prefs.endnotes.label "notes de fin">
 
-<!ENTITY zotero.integration.prefs.formatUsing.label "Formater en utilisant :">
+<!ENTITY zotero.integration.prefs.formatUsing.label "Stocker les citations dans des :">
 <!ENTITY zotero.integration.prefs.bookmarks.label "Signets">
-<!ENTITY zotero.integration.prefs.bookmarks.caption "Les signets sont conservés entre Microsoft Word et OpenOffice/LibreOffice, mais peuvent être modifiés accidentellement. Pour des raisons de compatibilité, les citations ne peuvent pas être insérées dans des notes de bas de page ou de fin lorsque cette option est sélectionnée.">
+<!ENTITY zotero.integration.prefs.bookmarks.caption "Les signets (ou repères de texte) peuvent être partagés entre Word et LibreOffice, mais ils engendrent parfois des erreurs s'ils sont modifiés accidentellement et ne peuvent pas être insérés en notes de bas de page.">
 
 
-<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.label "Abréger automatiquement les titres de revues">
-<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.caption "Les abréviations MEDLINE des titres de revues seront automatiquement créés sur la base des titres de revues.  Le champ Zotero &quot;Abrév. de revue&quot; sera ignoré.">
-
-<!ENTITY zotero.integration.prefs.storeReferences.label "Stocker les références dans le document">
-<!ENTITY zotero.integration.prefs.storeReferences.caption "Stocker les références dans votre document augmentera la taille du fichier mais vous permettra de partager votre document avec d'autres sans utiliser un groupe Zotero. Zotero 3.0 ou suivant est nécessaire pour mettre à jour des documents créés avec cette option.">
+<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.label "Utiliser les abréviations MEDLINE des titres de revues">
+<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.caption "Le champ Zotero &quot;Abrév. de revue&quot; sera ignoré.">
 
 <!ENTITY zotero.integration.showEditor.label "Montrer l'éditeur">
 <!ENTITY zotero.integration.classicView.label "Vue classique">
 
 <!ENTITY zotero.integration.references.label "Références dans la bibliographie">
 
+<!ENTITY zotero.sync.stop "Arrêter la synchronisation">
 <!ENTITY zotero.sync.error "Erreur de synchronisation">
 <!ENTITY zotero.sync.storage.progress "Progression :">
 <!ENTITY zotero.sync.storage.downloads "Téléchargés :">

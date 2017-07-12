@@ -263,6 +263,47 @@ describe("Zotero.DataObject", function() {
 				assert.isFalse(obj.hasChanged());
 			}
 		})
+		
+		describe("Edit Check", function () {
+			var group;
+			
+			before(function* () {
+				group = yield createGroup({
+					editable: false
+				});
+			});
+			
+			it("should disallow saving to read-only libraries", function* () {
+				let item = createUnsavedDataObject('item', { libraryID: group.libraryID });
+				var e = yield getPromiseError(item.saveTx());
+				assert.ok(e);
+				assert.include(e.message, "read-only");
+			});
+			
+			it("should allow saving if skipEditCheck is passed", function* () {
+				let item = createUnsavedDataObject('item', { libraryID: group.libraryID });
+				var e = yield getPromiseError(item.saveTx({
+					skipEditCheck: true
+				}));
+				assert.isFalse(e);
+			});
+			
+			it("should allow saving if skipAll is passed", function* () {
+				let item = createUnsavedDataObject('item', { libraryID: group.libraryID });
+				var e = yield getPromiseError(item.saveTx({
+					skipAll: true
+				}));
+				assert.isFalse(e);
+			});
+		});
+		
+		describe("Options", function () {
+			describe("#skipAll", function () {
+				it("should include edit check", function* () {
+					
+				});
+			});
+		});
 	})
 	
 	describe("#erase()", function () {
@@ -362,6 +403,31 @@ describe("Zotero.DataObject", function() {
 				yield obj.eraseTx();
 			}
 		})
+		
+		it("should clear changed status", function* () {
+			var item = createUnsavedDataObject('item');
+			item.synced = true;
+			yield item.saveTx();
+			
+			// Only synced changed
+			item.synced = false;
+			assert.isTrue(item.hasChanged());
+			assert.isTrue(item._changed.primaryData.synced);
+			yield item.updateSynced(true);
+			assert.isFalse(item.hasChanged());
+			// Should clear primary data change object
+			assert.isUndefined(item._changed.primaryData);
+			
+			// Another primary field also changed
+			item.setField('dateModified', '2017-02-27 12:34:56');
+			item.synced = false;
+			assert.isTrue(item.hasChanged());
+			assert.isTrue(item._changed.primaryData.synced);
+			yield item.updateSynced(true);
+			assert.isTrue(item.hasChanged());
+			// Should clear only 'synced' change status
+			assert.isUndefined(item._changed.primaryData.synced);
+		});
 	})
 	
 	describe("Relations", function () {
@@ -426,7 +492,7 @@ describe("Zotero.DataObject", function() {
 				var item2URI = Zotero.URI.getItemURI(item2);
 				
 				yield item2.addLinkedItem(item1);
-				var linkedItem = item1.getLinkedItem(item2.libraryID);
+				var linkedItem = yield item1.getLinkedItem(item2.libraryID);
 				assert.equal(linkedItem.id, item2.id);
 			})
 			
@@ -437,7 +503,7 @@ describe("Zotero.DataObject", function() {
 				var item2 = yield createDataObject('item', { libraryID: group.libraryID });
 				
 				yield item2.addLinkedItem(item1);
-				var linkedItem = item2.getLinkedItem(item1.libraryID);
+				var linkedItem = yield item2.getLinkedItem(item1.libraryID);
 				assert.isFalse(linkedItem);
 			})
 			
@@ -448,7 +514,7 @@ describe("Zotero.DataObject", function() {
 				var item2 = yield createDataObject('item', { libraryID: group.libraryID });
 				
 				yield item2.addLinkedItem(item1);
-				var linkedItem = item2.getLinkedItem(item1.libraryID, true);
+				var linkedItem = yield item2.getLinkedItem(item1.libraryID, true);
 				assert.equal(linkedItem.id, item1.id);
 			})
 		})

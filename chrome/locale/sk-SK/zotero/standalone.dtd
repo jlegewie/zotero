@@ -23,9 +23,9 @@
 <!ENTITY closeCmd.label "Zatvoriť">
 <!ENTITY closeCmd.key "W">
 <!ENTITY closeCmd.accesskey "C">
-<!ENTITY importCmd.label "Import…">
+<!ENTITY importCmd.label "Importovať...">
 <!ENTITY importCmd.key "I">
-<!ENTITY importFromClipboardCmd.label "Import from Clipboard">
+<!ENTITY importFromClipboardCmd.label "Importovať zo schránky">
 <!ENTITY quitApplicationCmdWin.label "Zavrieť">
 <!ENTITY quitApplicationCmdWin.accesskey "x">
 <!ENTITY quitApplicationCmd.label "Zavrieť">
@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Nástroje">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Nainštalovať prepájač prehliadača">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Doplnky">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "Poslať odozvu...">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Nahlásiť chyby do Zotera…">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Overiť aktualizácie...">

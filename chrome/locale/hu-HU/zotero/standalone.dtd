@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Eszközök">
 <!ENTITY toolsMenu.accesskey "E">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Kiegészítők">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "Visszajelzés küldése…">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Hiba jelentése a Zotero-nak…">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Frissítések keresése…">

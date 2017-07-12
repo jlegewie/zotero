@@ -24,7 +24,6 @@ pref("extensions.zotero.zoteroDotOrgVersionHeader", true);
 pref("extensions.zotero.triggerProxyAuthentication", true);
 // Proxy auth URLs should respond successfully to HEAD requests over HTTP and HTTPS (in case of forced HTTPS requests)
 pref("extensions.zotero.proxyAuthenticationURLs", 'http://www.acm.org,http://www.ebscohost.com,http://www.elsevier.com,http://www.ieee.org,http://www.jstor.org,http://www.ovid.com,http://www.springer.com,http://www.tandfonline.com');
-pref("extensions.zotero.cacheTranslatorData",true);
 pref("extensions.zotero.browserContentContextMenu", true);
 pref("extensions.zotero.openURL.resolver","http://worldcatlibraries.org/registry/gateway");
 pref("extensions.zotero.openURL.version","1.0");
@@ -138,6 +137,9 @@ pref("extensions.zotero.zeroconf.server.enabled", false);
 // Annotation settings
 pref("extensions.zotero.annotations.warnOnClose", true);
 
+// Streaming server
+pref("extensions.zotero.streaming.enabled", true);
+
 // Sync
 pref("extensions.zotero.sync.autoSync", true);
 pref("extensions.zotero.sync.server.username", '');
@@ -155,7 +157,6 @@ pref("extensions.zotero.sync.storage.groups.enabled", true);
 pref("extensions.zotero.sync.storage.downloadMode.personal", "on-sync");
 pref("extensions.zotero.sync.storage.downloadMode.groups", "on-sync");
 pref("extensions.zotero.sync.fulltext.enabled", true);
-pref("extensions.zotero.sync.streaming.enabled", true);
 
 // Proxy
 pref("extensions.zotero.proxies.autoRecognize", true);

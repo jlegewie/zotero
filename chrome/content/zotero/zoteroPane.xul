@@ -210,6 +210,10 @@
 						</toolbarbutton>
 					</hbox>
 					<hbox align="center" pack="end">
+						<toolbarbutton id="zotero-tb-sync-stop"
+							tooltiptext="&zotero.sync.stop;"
+							oncommand="this.hidden = true; Zotero.Sync.Runner.stop()"
+							hidden="true"/>
 						<hbox id="zotero-tb-sync-progress-box" hidden="true" align="center">
 							<!-- TODO: localize -->
 							<toolbarbutton id="zotero-tb-sync-storage-cancel"
@@ -295,7 +299,7 @@
 					<menuseparator/>
 					<menuitem class="menuitem-iconic zotero-menuitem-toggle-read-item" oncommand="ZoteroPane_Local.toggleSelectedItemsRead();"/>
 					<menuitem class="menuitem-iconic zotero-menuitem-duplicate-item" label="&zotero.items.menu.duplicateItem;" oncommand="ZoteroPane_Local.duplicateSelectedItem().done();"/>
-					<menuitem class="menuitem-iconic zotero-menuitem-delete-collection" oncommand="ZoteroPane_Local.deleteSelectedItems();"/>
+					<menuitem class="menuitem-iconic zotero-menuitem-remove-items" oncommand="ZoteroPane_Local.deleteSelectedItems();"/>
 					<menuitem class="menuitem-iconic zotero-menuitem-restore-to-library" label="&zotero.items.menu.restoreToLibrary;" oncommand="ZoteroPane_Local.restoreSelectedItems();"/>
 					<menuitem class="menuitem-iconic zotero-menuitem-move-to-trash" oncommand="ZoteroPane_Local.deleteSelectedItems(true, true);"/>
 					<menuitem class="menuitem-iconic zotero-menuitem-delete-from-lib" oncommand="ZoteroPane_Local.deleteSelectedItems(false, true)"/>
@@ -561,7 +565,10 @@
 
 							<!-- Label for displaying messages when items pane is hidden
 							 (e.g. "Advanced search mode — press Enter to search.")-->
-							<vbox id="zotero-items-pane-message-box" pack="center" align="center"/>
+							<vbox id="zotero-items-pane-message-box" pack="center" align="center"
+								ondragenter="return ZoteroPane.itemsView.onDragEnter(event)"
+								ondragover="return ZoteroPane.itemsView.onDragOver(event)"
+								ondrop="ZoteroPane.itemsView.onDrop(event); ZoteroPane.itemsView.drop(-1, -1, event.dataTransfer)"/>
 						</deck>
 					</vbox>
 

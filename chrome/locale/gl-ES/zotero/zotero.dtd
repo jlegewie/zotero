@@ -12,7 +12,7 @@
 <!ENTITY zotero.general.saveAs "Gardar como...">
 <!ENTITY zotero.general.advancedOptions.label "Opcións avanzadas">
 <!ENTITY zotero.general.more "Máis">
-<!ENTITY zotero.general.loading "Loading…">
+<!ENTITY zotero.general.loading "Cargando...">
 
 <!ENTITY zotero.errorReport.title "Informe de erros de Zotero">
 <!ENTITY zotero.errorReport.unrelatedMessages "Isto pode conter mensaxes que non estean relacionadas con Zotero.">
@@ -156,6 +156,7 @@
 <!ENTITY zotero.tagSelector.loadingTags "Cargando as etiquetas...">
 <!ENTITY zotero.tagSelector.showAutomatic "Mostrar automaticamente">
 <!ENTITY zotero.tagSelector.displayAllInLibrary "Mostrar todas as etiquetas nesta librería">
+<!ENTITY zotero.tagSelector.deleteAutomaticInLibrary "Delete Automatic Tags in This Library…">
 <!ENTITY zotero.tagSelector.clearAll "Desmarcar todo">
 <!ENTITY zotero.tagSelector.assignColor "Asignarlle cor...">
 <!ENTITY zotero.tagSelector.renameTag "Renomear a etiqueta...">
@@ -224,22 +225,20 @@
 <!ENTITY zotero.integration.prefs.footnotes.label "Notas ao pé de páxina">
 <!ENTITY zotero.integration.prefs.endnotes.label "Notas no rodapé">
 
-<!ENTITY zotero.integration.prefs.formatUsing.label "Utilizando o formato:">
+<!ENTITY zotero.integration.prefs.formatUsing.label "Gardar as citas como:">
 <!ENTITY zotero.integration.prefs.bookmarks.label "Marcador">
-<!ENTITY zotero.integration.prefs.bookmarks.caption "Os marcadores consérvanse a través de e LibreOffice e Microsoft Word pero poden ser modificados accidentalmente. Por motivos de compatibilidade, as citas non se insiren nas notas a final de páxina ou nos rodapés cando se activa esa opción.">
+<!ENTITY zotero.integration.prefs.bookmarks.caption "Os marcapáxinas pódense compartir entre Word e LibreOffice. Porén, se se modifican por erro xa non se poden introducir nas notas ao pé do texto.">
 
 
-<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.label "Abreviar os títulos de revistas de maneira automática">
-<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.caption "As abreviaturas das revistas de MEDLINE xeraranse automaticamente empregando os títulos das revistas. O campo «Abrev revista» ignórase.">
-
-<!ENTITY zotero.integration.prefs.storeReferences.label "Almacenar as referencias no documento">
-<!ENTITY zotero.integration.prefs.storeReferences.caption "Almacenar as referencias no documento supón un aumento no peso do ficheiro mais permitirache compartir o documento sen ter que empregar ningún grupo de Zotero. Precísase ter Zotero 3.0 ou as seguintes versións para actualizar os ficheiros que se crearon con esta opción.">
+<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.label "Empregar as abreviaturas de MEDLINE">
+<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.caption "O campo «Abrv. Xornal» hase ignorar. ">
 
 <!ENTITY zotero.integration.showEditor.label "Mostrar o editor">
 <!ENTITY zotero.integration.classicView.label "Vista clásica">
 
 <!ENTITY zotero.integration.references.label "Referencias en bibliografía">
 
+<!ENTITY zotero.sync.stop "Stop Sync">
 <!ENTITY zotero.sync.error "Erro de sincronización">
 <!ENTITY zotero.sync.storage.progress "Progreso:">
 <!ENTITY zotero.sync.storage.downloads "Descargas:">
@@ -271,10 +270,10 @@
 <!ENTITY zotero.feedSettings.title.label "Título:">
 <!ENTITY zotero.feedSettings.refresh.label1 "Actualizar todas as fontes">
 <!ENTITY zotero.feedSettings.refresh.label2 "hora(s)">
-<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label1 "Remove unread feed items after">
-<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label2 "day(s)">
-<!ENTITY zotero.feedSettings.cleanupReadAfter.label1 "Remove read feed items after">
-<!ENTITY zotero.feedSettings.cleanupReadAfter.label2 "day(s)">
+<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label1 "Borrar os elementos sen ler despois de">
+<!ENTITY zotero.feedSettings.cleanupUnreadAfter.label2 "día(s)">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label1 "Borrar os elementos sen ler despois de">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label2 "día(s)">
 
 
 <!ENTITY zotero.recognizePDF.recognizing.label "Recuperando metadatos ...">

@@ -262,7 +262,7 @@ Zotero.Sync.Storage.Engine.prototype.start = Zotero.Promise.coroutine(function* 
 	}
 	
 	// If WebDAV sync, purge orphaned files
-	if (this.controller.mode == 'webdav') {
+	if (downloadSuccessful && this.controller.mode == 'webdav') {
 		try {
 			yield this.controller.purgeOrphanedStorageFiles(libraryID);
 		}
@@ -282,6 +282,7 @@ Zotero.Sync.Storage.Engine.prototype.start = Zotero.Promise.coroutine(function* 
 
 
 Zotero.Sync.Storage.Engine.prototype.stop = function () {
+	Zotero.debug("Stopping file syncing for " + this.library.name);
 	for (let type in this.queues) {
 		this.queues[type].stop();
 	}
@@ -321,22 +322,9 @@ Zotero.Sync.Storage.Engine.prototype.queueItem = Zotero.Promise.coroutine(functi
 		onProgress: this.onProgress
 	});
 	if (type == 'upload') {
-		try {
-			request.setMaxSize(yield Zotero.Attachments.getTotalFileSize(item));
-		}
-		// If this fails, ignore it, though we might fail later
-		catch (e) {
-			// But if the file doesn't exist yet, don't try to upload it
-			//
-			// This isn't a perfect test, because the file could still be in the process of being
-			// downloaded (e.g., from the web). It'd be better to download files to a temp
-			// directory and move them into place.
-			if (!(yield item.getFilePathAsync())) {
-				Zotero.debug("File " + item.libraryKey + " not yet available to upload -- skipping");
-				return;
-			}
-			
-			Zotero.logError(e);
+		if (!(yield item.fileExists())) {
+			Zotero.debug("File " + item.libraryKey + " not yet available to upload -- skipping");
+			return;
 		}
 	}
 	this.queues[type].add(request.start.bind(request));

@@ -23,13 +23,9 @@
     ***** END LICENSE BLOCK *****
 */
 
-/**
- * @property {Boolean} cacheTranslatorData Whether translator data should be cached or reloaded
- *	every time a translator is accessed
- * @property {Zotero.CSL} lastCSL
- */
 Zotero.Styles = new function() {
 	var _initialized = false;
+	var _initializationDeferred = false;
 	var _styles, _visibleStyles;
 	
 	var _renamedStyles = null;
@@ -46,10 +42,30 @@ Zotero.Styles = new function() {
 	/**
 	 * Initializes styles cache, loading metadata for styles into memory
 	 */
-	this.reinit = Zotero.Promise.coroutine(function* () {
+	this.init = Zotero.Promise.coroutine(function* (options = {}) {
+		// Wait until bundled files have been updated, except when this is called by the schema update
+		// code itself
+		if (!options.fromSchemaUpdate) {
+			yield Zotero.Schema.schemaUpdatePromise;
+		}
+		
+		// If an initialization has already started, a regular init() call should return the promise
+		// for that (which may already be resolved). A reinit should yield on that but then continue
+		// with reinitialization.
+		if (_initializationDeferred) {
+			let promise = _initializationDeferred.promise;
+			if (options.reinit) {
+				yield promise;
+			}
+			else {
+				return promise;
+			}
+		}
+		
+		_initializationDeferred = Zotero.Promise.defer();
+		
 		Zotero.debug("Initializing styles");
 		var start = new Date;
-		_initialized = true;
 		
 		// Upgrade style locale prefs for 4.0.27
 		var bibliographyLocale = Zotero.Prefs.get("export.bibliographyLocale");
@@ -61,7 +77,6 @@ Zotero.Styles = new function() {
 		
 		_styles = {};
 		_visibleStyles = [];
-		this.lastCSL = null;
 		
 		// main dir
 		var dir = Zotero.getStylesDirectory().path;
@@ -101,21 +116,37 @@ Zotero.Styles = new function() {
 		
 		// Load renamed styles
 		_renamedStyles = {};
-		yield Zotero.HTTP.request(
+		var xmlhttp = yield Zotero.HTTP.request(
 			"GET",
 			"resource://zotero/schema/renamed-styles.json",
 			{
 				responseType: 'json'
 			}
-		)
-		.then(function (xmlhttp) {
-			// Map some obsolete styles to current ones
-			if (xmlhttp.response) {
-				_renamedStyles = xmlhttp.response;
-			}
-		})
+		);
+		// Map some obsolete styles to current ones
+		if (xmlhttp.response) {
+			_renamedStyles = xmlhttp.response;
+		}
+		
+		_initializationDeferred.resolve();
+		_initialized = true;
+		
+		// Styles are fully loaded, but we still need to trigger citeproc reloads in Integration
+		// so that style updates are reflected in open documents
+		Zotero.Integration.resetSessionStyles();
 	});
-	this.init = Zotero.lazy(this.reinit);
+	
+	this.reinit = function (options = {}) {
+		return this.init(Object.assign({}, options, { reinit: true }));
+	};
+	
+	// This is used by bibliography.js to work around a weird interaction between Bluebird and modal
+	// dialogs in tests. Calling `yield Zotero.Styles.init()` from `Zotero_File_Interface_Bibliography.init()`
+	// in the modal Create Bibliography dialog results in a hang, so instead use a synchronous check for
+	// initialization. The hang doesn't seem to happen (at least in the same way) outside of tests.
+	this.initialized = function () {
+		return _initialized;
+	};
 	
 	/**
 	 * Reads all styles from a given directory and caches their metadata
@@ -190,7 +221,7 @@ Zotero.Styles = new function() {
 		}
 		
 		return _styles[id] || false;
-	}
+	};
 	
 	/**
 	 * Gets all visible styles
@@ -238,24 +269,36 @@ Zotero.Styles = new function() {
 	/**
 	 * Installs a style file, getting the contents of an nsIFile and showing appropriate
 	 * error messages
-	 * @param {String|nsIFile} style An nsIFile representing a style on disk, or a string
-	 *     containing the style data
+	 * @param {Object} style An object with one of the following properties
+	 * 		- file: An nsIFile representing a style on disk
+	 * 		- url: A url of the location of the style (local or remote)
+	 * 		- string: A string containing the style data
 	 * @param {String} origin The origin of the style, either a filename or URL, to be
 	 *     displayed in dialogs referencing the style
 	 * @param {Boolean} [silent=false] Skip prompts
 	 */
 	this.install = Zotero.Promise.coroutine(function* (style, origin, silent=false) {
 		var styleTitle;
+		var warnDeprecated;
+		if (style instanceof Components.interfaces.nsIFile) {
+			warnDeprecated = true;
+			style = {file: style};
+		} else if (typeof style == 'string') {
+			warnDeprecated = true;
+			style = {string: style};
+		}
+		if (warnDeprecated) {
+			Zotero.debug("Zotero.Styles.install() now takes a style object as first argument -- update your code", 2);
+		}
 		
 		try {
-			if (style instanceof Components.interfaces.nsIFile) {
-				// handle nsIFiles
-				var url = Services.io.newFileURI(style);
-				var xmlhttp = yield Zotero.HTTP.request("GET", url.spec);
-				styleTitle = yield _install(xmlhttp.responseText, style.leafName, false, silent);
-			} else {
-				styleTitle = yield _install(style, origin, false, silent);
+			if (style.file) {
+				style.string = yield Zotero.File.getContentsAsync(style.file);
 			}
+			else if (style.url) {
+				style.string = yield Zotero.File.getContentsFromURLAsync(style.url);
+			}
+			styleTitle = yield _install(style.string, origin, false, silent);
 		}
 		catch (error) {
 			// Unless user cancelled, show an alert with the error

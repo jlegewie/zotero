@@ -39,6 +39,8 @@ Zotero.Attachments = new function(){
 	 * @param {Integer} [options.libraryID]
 	 * @param {Integer[]|String[]} [options.parentItemID] - Parent item to add item to
 	 * @param {Integer[]} [options.collections] - Collection keys or ids to add new item to
+	 * @param {String} [options.contentType]
+	 * @param {String} [options.charset]
 	 * @param {Object} [options.saveOptions] - Options to pass to Zotero.Item::save()
 	 * @return {Promise<Zotero.Item>}
 	 */
@@ -49,6 +51,8 @@ Zotero.Attachments = new function(){
 		var file = Zotero.File.pathToFile(options.file);
 		var parentItemID = options.parentItemID;
 		var collections = options.collections;
+		var contentType = options.contentType;
+		var charset = options.charset;
 		var saveOptions = options.saveOptions;
 		
 		var newName = Zotero.File.getValidFileName(file.leafName);
@@ -90,9 +94,13 @@ Zotero.Attachments = new function(){
 				// Copy file to unique filename, which automatically shortens long filenames
 				newFile = Zotero.File.copyToUnique(file, newFile);
 				
-				contentType = yield Zotero.MIME.getMIMETypeFromFile(newFile);
-				
+				if (!contentType) {
+					contentType = yield Zotero.MIME.getMIMETypeFromFile(newFile);
+				}
 				attachmentItem.attachmentContentType = contentType;
+				if (charset) {
+					attachmentItem.attachmentCharset = charset;
+				}
 				attachmentItem.attachmentPath = newFile.path;
 				yield attachmentItem.save(saveOptions);
 			}.bind(this));
@@ -257,36 +265,43 @@ Zotero.Attachments = new function(){
 		
 		// Save using a hidden browser
 		var nativeHandlerImport = function () {
-			var deferred = Zotero.Promise.defer();
-			var browser = Zotero.HTTP.processDocuments(
-				url,
-				function() {
-					let channel = browser.docShell.currentDocumentChannel;
-					if (channel && (channel instanceof Components.interfaces.nsIHttpChannel)) {
-						if (channel.responseStatus < 200 || channel.responseStatus >= 400) {
-							deferred.reject(new Error("Invalid response "+channel.responseStatus+" "+channel.responseStatusText+" for '"+url+"'"));
-							return;
+			return new Zotero.Promise(function (resolve, reject) {
+				var browser = Zotero.HTTP.processDocuments(
+					url,
+					Zotero.Promise.coroutine(function* () {
+						let channel = browser.docShell.currentDocumentChannel;
+						if (channel && (channel instanceof Components.interfaces.nsIHttpChannel)) {
+							if (channel.responseStatus < 200 || channel.responseStatus >= 400) {
+								reject(new Error("Invalid response " + channel.responseStatus + " "
+									+ channel.responseStatusText + " for '" + url + "'"));
+								return;
+							}
 						}
-					}
-					return Zotero.Attachments.importFromDocument({
-						libraryID,
-						document: browser.contentDocument,
-						parentItemID,
-						title,
-						collections,
-						saveOptions
-					})
-					.then(function (attachmentItem) {
-						Zotero.Browser.deleteHiddenBrowser(browser);
-						deferred.resolve(attachmentItem);
-					});
-				},
-				undefined,
-				undefined,
-				true,
-				cookieSandbox
-			);
-			return deferred.promise;
+						try {
+							let attachmentItem = yield Zotero.Attachments.importFromDocument({
+								libraryID,
+								document: browser.contentDocument,
+								parentItemID,
+								title,
+								collections,
+								saveOptions
+							});
+							resolve(attachmentItem);
+						}
+						catch (e) {
+							Zotero.logError(e);
+							reject(e);
+						}
+						finally {
+							Zotero.Browser.deleteHiddenBrowser(browser);
+						}
+					}),
+					undefined,
+					undefined,
+					true,
+					cookieSandbox
+				);
+			});
 		};
 		
 		// Save using remote web browser persist
@@ -586,7 +601,7 @@ Zotero.Attachments = new function(){
 			}
 			
 			if (contentType === 'text/html' || contentType === 'application/xhtml+xml') {
-				Zotero.debug('Saving document with saveURI()');
+				Zotero.debug('Saving document with saveDocument()');
 				yield Zotero.Utilities.Internal.saveDocument(document, tmpFile.path);
 			}
 			else {
@@ -670,9 +685,10 @@ Zotero.Attachments = new function(){
 			}, 1000);
 		}
 		else if (Zotero.MIME.isTextType(contentType)) {
-			// Index document immediately, so that browser object can't
-			// be removed before indexing completes
-			yield Zotero.Fulltext.indexDocument(document, attachmentItem.id);
+			// wbp.saveDocument consumes the document context (in Zotero.Utilities.Internal.saveDocument)
+			// Seems like a mozilla bug, but nothing on bugtracker.
+			// Either way, we don't rely on Zotero.Fulltext.indexDocument here anymore
+			yield Zotero.Fulltext.indexItems(attachmentItem.id, true, true);
 		}
 		
 		return attachmentItem;
@@ -949,10 +965,12 @@ Zotero.Attachments = new function(){
 			}
 		}
 		catch (e) {
-			iterator.close();
 			if (e != StopIteration) {
 				throw e;
 			}
+		}
+		finally {
+			iterator.close();
 		}
 		return numFiles > 1;
 	});
@@ -1092,7 +1110,7 @@ Zotero.Attachments = new function(){
 		yield newAttachment.save();
 		
 		// Copy over files if they exist
-		if (newAttachment.isImportedAttachment() && attachment.getFile()) {
+		if (newAttachment.isImportedAttachment() && (yield attachment.fileExists())) {
 			let dir = Zotero.Attachments.getStorageDirectory(attachment);
 			let newDir = yield Zotero.Attachments.createDirectoryForItem(newAttachment);
 			yield Zotero.File.copyDirectory(dir, newDir);

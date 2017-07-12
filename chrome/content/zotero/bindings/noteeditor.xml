@@ -201,10 +201,13 @@
 					
 					//var scrollPos = textbox.inputField.scrollTop;
 					if (this.item) {
+						// For sanity check in save()
+						textbox.setAttribute('itemID', this.item.id);
 						textbox.value = this.item.getNote();
 					}
 					else {
 						textbox.value = '';
+						textbox.removeAttribute('itemID');
 					}
 					//textbox.inputField.scrollTop = scrollPos;
 					
@@ -251,6 +254,15 @@
 							// Update note
 							var noteField = this._id('noteField');
 							if (this.item) {
+								// If note field doesn't match item, abort save and run error handler
+								if (noteField.getAttribute('itemID') != this.item.id) {
+									if (this.hasAttribute('onerror')) {
+										let fn = new Function("", this.getAttribute('onerror'));
+										fn.call(this)
+									}
+									throw new Error("Note field doesn't match current item");
+								}
+								
 								let changed = this.item.setNote(noteField.value);
 								if (changed && this.saveOnEdit) {
 									this.noteField.changed = false;
@@ -430,7 +442,7 @@
 					// If editable and no existing tags, open new empty row
 					var tagsBox = this.id('tags');
 					if (tagsBox.mode == 'edit' && tagsBox.count == 0) {
-						this.id('tags').new();
+						this.id('tags').newTag();
 					}
 				]]></body>
 			</method>
@@ -548,7 +560,7 @@
 					</xul:rows>
 				</xul:grid>
 				<xul:popupset>
-					<xul:menupopup id="relatedPopup" width="300" onpopupshowing="this.firstChild.reload();">
+					<xul:menupopup id="relatedPopup" width="300" onpopupshowing="this.firstChild.refresh();">
 						<xul:relatedbox id="related" flex="1"/>
 					</xul:menupopup>
 					<!-- The onpopup* stuff is an ugly hack to keep track of when the
@@ -561,7 +573,7 @@
 					tagsbox and tagsLabel above, so be sure to update fixPopup() if it changes
 					-->
 					<xul:menupopup id="tagsPopup" ignorekeys="true"
-							onpopupshown="if (!document.commandDispatcher.focusedElement || document.commandDispatcher.focusedElement.tagName=='xul:label'){ /* DEBUG: it would be nice to make this work -- if (this.firstChild.count==0){ this.firstChild.new(); } */ this.setAttribute('showing', 'true'); }"
+							onpopupshown="if (!document.commandDispatcher.focusedElement || document.commandDispatcher.focusedElement.tagName=='xul:label'){ /* DEBUG: it would be nice to make this work -- if (this.firstChild.count==0){ this.firstChild.newTag(); } */ this.setAttribute('showing', 'true'); }"
 							onpopuphidden="if (!document.commandDispatcher.focusedElement || document.commandDispatcher.focusedElement.tagName=='xul:label'){ this.setAttribute('showing', 'false'); }">
 						<xul:tagsbox id="tags" flex="1" mode="edit"/>
 					</xul:menupopup>

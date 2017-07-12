@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "أدوات">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "ملحقات">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "م">
 <!ENTITY helpFeedbackPage.label "ارسال ملاحظات">
 <!ENTITY helpFeedbackPage.accesskey "ر">
+
 <!ENTITY helpReportErrors.label "بلغ عن علة في Zotero…">
 <!ENTITY helpReportErrors.accesskey "ب">
 <!ENTITY helpCheckForUpdates.label "تحقق من التحديثات">

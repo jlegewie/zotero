@@ -30,6 +30,8 @@
  * @class Utility functions not made available to translators
  */
 Zotero.Utilities.Internal = {
+	SNAPSHOT_SAVE_TIMEOUT: 30000,
+	
 	/**
 	 * Run a function on chunks of a given size of an array's elements.
 	 *
@@ -138,10 +140,8 @@ Zotero.Utilities.Internal = {
 	 * @param {Boolean} [base64=FALSE]  Return as base-64-encoded string
 	 *                                  rather than hex string
 	 */
-	"md5Async": function (file, base64) {
+	md5Async: async function (file, base64) {
 		const CHUNK_SIZE = 16384;
-		
-		var deferred = Zotero.Promise.defer();
 		
 		function toHexString(charCode) {
 			return ("0" + charCode.toString(16)).slice(-2);
@@ -151,77 +151,52 @@ Zotero.Utilities.Internal = {
 				   .createInstance(Components.interfaces.nsICryptoHash);
 		ch.init(ch.MD5);
 		
-		// Recursively read chunks of the file, and resolve the promise
-		// with the hash when done
-		let readChunk = function readChunk(file) {
-			file.read(CHUNK_SIZE)
-			.then(
-				function readSuccess(data) {
-					ch.update(data, data.length);
-					if (data.length == CHUNK_SIZE) {
-						readChunk(file);
-					}
-					else {
-						let hash = ch.finish(base64);
-						
-						// Base64
-						if (base64) {
-							deferred.resolve(hash);
-						}
-						// Hex string
-						else {
-							let hexStr = "";
-							for (let i = 0; i < hash.length; i++) {
-								hexStr += toHexString(hash.charCodeAt(i));
-							}
-							deferred.resolve(hexStr);
-						}
-					}
-				},
-				function (e) {
-					try {
-						ch.finish(false);
-					}
-					catch (e) {}
-					
-					deferred.reject(e);
+		// Recursively read chunks of the file and return a promise for the hash
+		let readChunk = async function (file) {
+			try {
+				let data = await file.read(CHUNK_SIZE);
+				ch.update(data, data.length);
+				if (data.length == CHUNK_SIZE) {
+					return readChunk(file);
 				}
-			)
-			.then(
-				null,
-				function (e) {
-					try {
-						ch.finish(false);
-					}
-					catch (e) {}
-					
-					deferred.reject(e);
+				
+				let hash = ch.finish(base64);
+				// Base64
+				if (base64) {
+					return hash;
 				}
-			);
-		}
+				// Hex string
+				let hexStr = "";
+				for (let i = 0; i < hash.length; i++) {
+					hexStr += toHexString(hash.charCodeAt(i));
+				}
+				return hexStr;
+			}
+			catch (e) {
+				try {
+					ch.finish(false);
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+				throw e;
+			}
+		};
 		
 		if (file instanceof OS.File) {
-			readChunk(file);
-		}
-		else {
-			if (file instanceof Components.interfaces.nsIFile) {
-				var path = file.path;
-			}
-			else {
-				var path = file;
-			}
-			OS.File.open(path)
-			.then(
-				function opened(file) {
-					readChunk(file);
-				},
-				function (e) {
-					deferred.reject(e);
-				}
-			);
+			return readChunk(file);
 		}
 		
-		return deferred.promise;
+		var path = (file instanceof Components.interfaces.nsIFile) ? file.path : file;
+		var hash;
+		try {
+			file = await OS.File.open(path);
+			hash = await readChunk(file);
+		}
+		finally {
+			await file.close();
+		}
+		return hash;
 	},
 	
 	
@@ -454,6 +429,7 @@ Zotero.Utilities.Internal = {
 			| nsIWBP.PERSIST_FLAGS_FORCE_ALLOW_COOKIES
 			| nsIWBP.PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION
 			| nsIWBP.PERSIST_FLAGS_FROM_CACHE
+			| nsIWBP.PERSIST_FLAGS_CLEANUP_ON_FAILURE
 			// Mostly ads
 			| nsIWBP.PERSIST_FLAGS_IGNORE_IFRAMES
 			| nsIWBP.PERSIST_FLAGS_IGNORE_REDIRECTED_DATA;
@@ -474,9 +450,10 @@ Zotero.Utilities.Internal = {
 		const wrapColumn = 80;
 		
 		var deferred = Zotero.Promise.defer();
-		wbp.progressListener = new Zotero.WebProgressFinishListener(function () {
+		var listener = new Zotero.WebProgressFinishListener(function () {
 			deferred.resolve();
 		});
+		wbp.progressListener = listener;
 		
 		wbp.saveDocument(
 			document,
@@ -486,6 +463,18 @@ Zotero.Utilities.Internal = {
 			encodingFlags,
 			wrapColumn
 		);
+		
+		// Cancel save after timeout has passed, so we return an error to the connector and don't stay
+		// saving forever
+		var timeoutID = setTimeout(function () {
+			if (deferred.promise.isPending()) {
+				Zotero.debug("Stopping save for " + document.location.href, 2);
+				//Zotero.debug(listener.getRequest());
+				deferred.reject("Snapshot save timeout");
+				wbp.cancelSave();
+			}
+		}, this.SNAPSHOT_SAVE_TIMEOUT);
+		deferred.promise.then(() => clearTimeout(timeoutID));
 		
 		return deferred.promise;
 	},

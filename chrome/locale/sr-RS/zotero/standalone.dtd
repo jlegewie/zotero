@@ -23,9 +23,9 @@
 <!ENTITY closeCmd.label "Затвори">
 <!ENTITY closeCmd.key "W">
 <!ENTITY closeCmd.accesskey "C">
-<!ENTITY importCmd.label "Import…">
+<!ENTITY importCmd.label "Увези…">
 <!ENTITY importCmd.key "I">
-<!ENTITY importFromClipboardCmd.label "Import from Clipboard">
+<!ENTITY importFromClipboardCmd.label "Увези из оставе">
 <!ENTITY quitApplicationCmdWin.label "Изађи">
 <!ENTITY quitApplicationCmdWin.accesskey "x">
 <!ENTITY quitApplicationCmd.label "Напусти">
@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Алати">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Инсталирај програм за повезивање са разгледачем">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Додаци">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "Пошаљи повратну информацију…">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Пријави грешке у Зотеру…">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Потражи ажурирања…">

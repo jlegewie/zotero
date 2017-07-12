@@ -94,6 +94,28 @@ describe("Zotero.Sync.Data.Local", function() {
 			
 			Zotero.DataDirectory.forceChange.restore();
 		});
+		
+		it("should migrate relations using local user key", function* () {
+			yield Zotero.DB.queryAsync("DELETE FROM settings WHERE setting='account'");
+			yield Zotero.Users.init();
+			
+			var item1 = yield createDataObject('item');
+			var item2 = createUnsavedDataObject('item');
+			item2.addRelatedItem(item1);
+			yield item2.save();
+			
+			var pred = Zotero.Relations.relatedItemPredicate;
+			assert.isTrue(
+				item2.toJSON().relations[pred][0].startsWith('http://zotero.org/users/local/')
+			);
+			
+			waitForDialog(false, 'accept', 'chrome://zotero/content/hardConfirmationDialog.xul');
+			yield Zotero.Sync.Data.Local.checkUser(window, 1, "A");
+			
+			assert.isTrue(
+				item2.toJSON().relations[pred][0].startsWith('http://zotero.org/users/1/items/')
+			);
+		});
 	});
 	
 	
@@ -472,6 +494,38 @@ describe("Zotero.Sync.Data.Local", function() {
 			assert.isFalse(obj.synced);
 		});
 		
+		it("should restore locally deleted collections and searches that changed remotely", async function () {
+			var libraryID = Zotero.Libraries.userLibraryID;
+			
+			for (let type of ['collection', 'search']) {
+				let objectsClass = Zotero.DataObjectUtilities.getObjectsClassForObjectType(type);
+				let obj = await createDataObject(type, { version: 1 });
+				let data = obj.toJSON();
+				
+				await obj.eraseTx();
+				
+				data.key = obj.key;
+				data.version = 2;
+				let json = {
+					key: obj.key,
+					version: 2,
+					data
+				};
+				let results = await Zotero.Sync.Data.Local.processObjectsFromJSON(
+					type, libraryID, [json], { stopOnError: true }
+				);
+				assert.isTrue(results[0].processed);
+				assert.notOk(results[0].conflict);
+				assert.isTrue(results[0].restored);
+				assert.isUndefined(results[0].changes);
+				assert.isUndefined(results[0].conflicts);
+				obj = objectsClass.getByLibraryAndKey(libraryID, data.key);
+				assert.equal(obj.version, 2);
+				assert.isTrue(obj.synced);
+				assert.isFalse(await Zotero.Sync.Data.Local.getDateDeleted(type, libraryID, data.key));
+			}
+		});
+		
 		it("should delete older versions in sync cache after processing", function* () {
 			var libraryID = Zotero.Libraries.userLibraryID;
 			
@@ -627,7 +681,7 @@ describe("Zotero.Sync.Data.Local", function() {
 		})
 		
 		it("should roll back partial object changes on error", function* () {
-			var libraryID = Zotero.Libraries.publicationsLibraryID;
+			var libraryID = Zotero.Libraries.userLibraryID;
 			var key1 = "AAAAAAAA";
 			var key2 = "BBBBBBBB";
 			var json = [
@@ -647,9 +701,8 @@ describe("Zotero.Sync.Data.Local", function() {
 					data: {
 						key: key2,
 						version: 1,
-						itemType: "journalArticle",
-						title: "Test B",
-						deleted: true // Not allowed in My Publications
+						itemType: "invalidType",
+						title: "Test B"
 					}
 				}
 			];
@@ -671,7 +724,7 @@ describe("Zotero.Sync.Data.Local", function() {
 		
 		before(function* () {
 			lib1 = Zotero.Libraries.userLibraryID;
-			lib2 = Zotero.Libraries.publicationsLibraryID;
+			lib2 = (yield getGroup()).libraryID;
 		});
 		
 		beforeEach(function* () {
@@ -1384,6 +1437,43 @@ describe("Zotero.Sync.Data.Local", function() {
 					]
 				);
 			});
+			
+			it("should automatically apply inPublications setting from remote", function () {
+				var cacheJSON = {
+					key: "AAAAAAAA",
+					version: 1234,
+					title: "Title 1",
+					dateModified: "2017-04-02 12:34:56"
+				};
+				var json1 = {
+					key: "AAAAAAAA",
+					version: 1234,
+					title: "Title 1",
+					dateModified: "2017-04-02 12:34:56"
+				};
+				var json2 = {
+					key: "AAAAAAAA",
+					version: 1235,
+					title: "Title 1",
+					inPublications: true,
+					dateModified: "2017-04-03 12:34:56"
+				};
+				var ignoreFields = ['dateAdded', 'dateModified'];
+				var result = Zotero.Sync.Data.Local._reconcileChanges(
+					'item', cacheJSON, json1, json2, ignoreFields
+				);
+				assert.lengthOf(result.changes, 1);
+				assert.sameDeepMembers(
+					result.changes,
+					[
+						{
+							field: "inPublications",
+							op: "add",
+							value: true
+						}
+					]
+				);
+			});
 		})
 		
 		
@@ -1906,6 +1996,64 @@ describe("Zotero.Sync.Data.Local", function() {
 				]
 			);
 		})
+		
+		it("should automatically use remote version for note markup differences when text content matches", function () {
+			var val2 = "<p>Foo bar<br />bar   foo</p>";
+			
+			var json1 = {
+				key: "AAAAAAAA",
+				version: 0,
+				itemType: "note",
+				note: "Foo bar<br/>bar foo",
+				dateModified: "2017-06-13 13:45:12"
+			};
+			var json2 = {
+				key: "AAAAAAAA",
+				version: 5,
+				itemType: "note",
+				note: val2,
+				dateModified: "2017-06-13 13:45:12"
+			};
+			var ignoreFields = ['dateAdded', 'dateModified'];
+			var result = Zotero.Sync.Data.Local._reconcileChangesWithoutCache(
+				'item', json1, json2, ignoreFields
+			);
+			assert.lengthOf(result.changes, 1);
+			assert.sameDeepMembers(
+				result.changes,
+				[
+					{
+						field: "note",
+						op: "add",
+						value: val2
+					}
+				]
+			);
+			assert.lengthOf(result.conflicts, 0);
+		});
+		
+		it("should show conflict for note markup differences when text content doesn't match", function () {
+			var json1 = {
+				key: "AAAAAAAA",
+				version: 0,
+				itemType: "note",
+				note: "Foo bar?",
+				dateModified: "2017-06-13 13:45:12"
+			};
+			var json2 = {
+				key: "AAAAAAAA",
+				version: 5,
+				itemType: "note",
+				note: "<p>Foo bar!</p>",
+				dateModified: "2017-06-13 13:45:12"
+			};
+			var ignoreFields = ['dateAdded', 'dateModified'];
+			var result = Zotero.Sync.Data.Local._reconcileChangesWithoutCache(
+				'item', json1, json2, ignoreFields
+			);
+			assert.lengthOf(result.changes, 0);
+			assert.lengthOf(result.conflicts, 1);
+		});
 		
 		it("should automatically use remote version for conflicting fields when both sides are in trash", function () {
 			var json1 = {

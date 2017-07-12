@@ -1,8 +1,8 @@
 #!/bin/bash
 CWD="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-case "$(uname -s)" in
-   CYGWIN*) IS_CYGWIN=1 ;;
+case "$OSTYPE" in
+  msys*|mingw*|cygwin*) IS_CYGWIN=1 ;;
 esac
 
 function makePath {
@@ -35,6 +35,7 @@ Options
  -b                  skip bundled translator/style installation
  -c                  open JavaScript console and don't quit on completion
  -d LEVEL            enable debug logging
+ -e TEST             end at the given test
  -f                  stop after first test failure
  -g                  only run tests matching the given pattern (grep)
  -h                  display this help
@@ -48,7 +49,7 @@ DONE
 
 DEBUG=false
 DEBUG_LEVEL=5
-while getopts "bcd:fg:hs:tx:" opt; do
+while getopts "bcd:e:fg:hs:tx:" opt; do
 	case $opt in
         b)
         	FX_ARGS="$FX_ARGS -ZoteroSkipBundledFiles"
@@ -59,6 +60,12 @@ while getopts "bcd:fg:hs:tx:" opt; do
 		d)
 			DEBUG=true
 			DEBUG_LEVEL="$OPTARG"
+			;;
+		e)
+			if [[ -z "$OPTARG" ]] || [[ ${OPTARG:0:1} = "-" ]]; then
+				usage
+			fi
+			FX_ARGS="$FX_ARGS -stopAtTestFile $OPTARG"
 			;;
 		f)
 			FX_ARGS="$FX_ARGS -bail"
@@ -109,11 +116,11 @@ TEMPDIR="`mktemp -d 2>/dev/null || mktemp -d -t 'zotero-unit'`"
 PROFILE="$TEMPDIR/profile"
 mkdir -p "$PROFILE/extensions"
 
-makePath ZOTERO_UNIT_PATH "$CWD"
-echo "$ZOTERO_UNIT_PATH" > "$PROFILE/extensions/zotero-unit@zotero.org"
-
-makePath ZOTERO_PATH "`dirname "$CWD"`"
+makePath ZOTERO_PATH "`dirname "$CWD"`/build"
 echo "$ZOTERO_PATH" > "$PROFILE/extensions/zotero@chnm.gmu.edu"
+
+makePath ZOTERO_UNIT_PATH "$ZOTERO_PATH/test"
+echo "$ZOTERO_UNIT_PATH" > "$PROFILE/extensions/zotero-unit@zotero.org"
 
 # Create data directory
 mkdir "$TEMPDIR/Zotero"
@@ -136,6 +143,8 @@ user_pref("xpinstall.signatures.required", false);
 user_pref("datareporting.healthreport.uploadEnabled", false);
 user_pref("datareporting.healthreport.service.enabled", false);
 user_pref("datareporting.healthreport.service.firstRun", false);
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
 EOF
 
 # -v flag on Windows makes Firefox process hang
@@ -149,6 +158,16 @@ fi
 
 # Clean up on exit
 trap "{ rm -rf \"$TEMPDIR\"; }" EXIT
+
+# Check if build watch process is running
+# If not, run now
+if [[ "$TRAVIS" != true ]] && ! ps | grep scripts/build.js | grep -v grep > /dev/null; then
+	echo
+	echo "Running JS build process"
+	cd "$CWD/.."
+	npm run build
+	echo
+fi
 
 makePath FX_PROFILE "$PROFILE"
 MOZ_NO_REMOTE=1 NO_EM_RESTART=1 "$FX_EXECUTABLE" -profile "$FX_PROFILE" \

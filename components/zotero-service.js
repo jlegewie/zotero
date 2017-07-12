@@ -104,6 +104,7 @@ const xpcomFilesLocal = [
 	'router',
 	'schema',
 	'server',
+	'streamer',
 	'style',
 	'sync',
 	'sync/syncAPIClient',
@@ -113,7 +114,6 @@ const xpcomFilesLocal = [
 	'sync/syncFullTextEngine',
 	'sync/syncLocal',
 	'sync/syncRunner',
-	'sync/syncStreamer',
 	'sync/syncUtilities',
 	'storage',
 	'storage/storageEngine',
@@ -152,9 +152,12 @@ var isFirstLoadThisSession = true;
 var zContext = null;
 var initCallbacks = [];
 var zInitOptions = {};
+Components.utils.import('resource://zotero/require.js');
 
 ZoteroContext = function() {}
 ZoteroContext.prototype = {
+	require,
+	
 	/**
 	 * Convenience method to replicate window.alert()
 	 **/
@@ -376,12 +379,9 @@ function ZoteroService() {
 							let checkForUpdateStr = "Check for Update";
 							try {
 								let src = 'chrome://zotero/locale/zotero.properties';
-								let localeService = Components.classes['@mozilla.org/intl/nslocaleservice;1']
-									.getService(Components.interfaces.nsILocaleService);
-								let appLocale = localeService.getApplicationLocale();
 								let stringBundleService = Components.classes["@mozilla.org/intl/stringbundle;1"]
 									.getService(Components.interfaces.nsIStringBundleService);
-								let stringBundle = stringBundleService.createBundle(src, appLocale);
+								let stringBundle = stringBundleService.createBundle(src);
 								errorStr = stringBundle.GetStringFromName('general.error');
 								checkForUpdateStr = stringBundle.GetStringFromName('general.checkForUpdate');
 								quitStr = stringBundle.GetStringFromName('general.quit');
@@ -556,6 +556,33 @@ ZoteroCommandLineHandler.prototype = {
 				}
 				else {
 					dump(`Not handling URL: ${uri.spec}\n\n`);
+				}
+			}
+			
+			param = cmdLine.handleFlag("debugger", false);
+			if (param) {
+				try {
+					let portOrPath = Services.prefs.getBranch('').getIntPref('devtools.debugger.remote-port');
+					
+					const { devtools } = Components.utils.import("resource://devtools/shared/Loader.jsm", {});
+					const { DebuggerServer } = devtools.require("devtools/server/main");
+					
+					if (!DebuggerServer.initialized) {
+						dump("Initializing devtools server\n");
+						DebuggerServer.init();
+						DebuggerServer.allowChromeProcess = true;
+						DebuggerServer.addBrowserActors();
+					}
+					
+					let listener = DebuggerServer.createListener();
+					listener.portOrPath = portOrPath;
+					listener.open();
+					
+					dump("Debugger server started on " + portOrPath + "\n\n");
+				}
+				catch (e) {
+					dump(e + "\n\n");
+					Components.utils.reportError(e);
 				}
 			}
 			

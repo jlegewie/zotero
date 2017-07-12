@@ -387,21 +387,25 @@ Zotero.Server.Connector.SaveItem.prototype = {
 			proxy
 		});
 		try {
-			let items = yield itemSaver.saveItems(
+			var deferred = Zotero.Promise.defer();
+			itemSaver.saveItems(
 				data.items,
-				Zotero.Server.Connector.AttachmentProgressManager.onProgress
-			);
-			// Remove attachments not being saved from item.attachments
-			for(var i=0; i<data.items.length; i++) {
-				var item = data.items[i];
-				for(var j=0; j<item.attachments.length; j++) {
-					if(!Zotero.Server.Connector.AttachmentProgressManager.has(item.attachments[j])) {
-						item.attachments.splice(j--, 1);
+				Zotero.Server.Connector.AttachmentProgressManager.onProgress,
+				function() {
+					// Remove attachments not being saved from item.attachments
+					for(var i=0; i<data.items.length; i++) {
+						var item = data.items[i];
+						for(var j=0; j<item.attachments.length; j++) {
+							if(!Zotero.Server.Connector.AttachmentProgressManager.has(item.attachments[j])) {
+								item.attachments.splice(j--, 1);
+							}
+						}
 					}
+					
+					deferred.resolve([201, "application/json", JSON.stringify({items: data.items})]);	
 				}
-			}
-			
-			return [201, "application/json", JSON.stringify({items: data.items})];
+			);
+			return deferred.promise;
 		}
 		catch (e) {
 			Zotero.logError(e);
@@ -475,9 +479,17 @@ Zotero.Server.Connector.SaveSnapshot.prototype = {
 			filesEditable = true;
 		}
 		
-		var cookieSandbox = new Zotero.CookieSandbox(
-			null, data.url, data.cookie, options.headers["User-Agent"]
-		);
+		var cookieSandbox = data.uri
+			? new Zotero.CookieSandbox(
+				null,
+				data.uri,
+				data.detailedCookies ? "" : data.cookie || "",
+				options.headers["User-Agent"]
+			)
+			: null;
+		if(cookieSandbox && data.detailedCookies) {
+			cookieSandbox.addCookiesFromHeader(data.detailedCookies);
+		}
 		
 		if (data.pdf && filesEditable) {
 			delete Zotero.Server.Connector.Data[data.url];
@@ -526,8 +538,7 @@ Zotero.Server.Connector.SaveSnapshot.prototype = {
 						
 						deferred.resolve(201);
 					} catch(e) {
-						Zotero.debug("ERROR");
-						Zotero.debug(e);
+						Zotero.debug(e, 1);
 						deferred.resolve(500);
 						throw e;
 					}
@@ -791,7 +802,7 @@ Zotero.Server.Connector.Ping.prototype = {
 				'<title>Zotero Connector Server is Available</title></head>' +
 				'<body>Zotero Connector Server is Available</body></html>'];
 		} else {
-			return [200];
+			return [200, 'text/plain', ''];
 		}
 	}
 }

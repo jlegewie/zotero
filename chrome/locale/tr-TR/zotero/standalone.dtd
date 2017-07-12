@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Araçlar">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Tarayıcı Bağlayıcılarını Kur...">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Eklentiler">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "Geri Bildirim Gönder...">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Hataları Zotero'ya Bildir">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Güncellemeleri Denetle">

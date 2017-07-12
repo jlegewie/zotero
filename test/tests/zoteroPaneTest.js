@@ -191,13 +191,6 @@ describe("ZoteroPane", function() {
 			var mtime = "1441252524000";
 			var md5 = Zotero.Utilities.Internal.md5(text)
 			
-			var newStorageSyncTime = Math.round(new Date().getTime() / 1000);
-			setResponse({
-				method: "GET",
-				url: "users/1/laststoragesync",
-				status: 200,
-				text: "" + newStorageSyncTime
-			});
 			var s3Path = `pretend-s3/${item.key}`;
 			this.httpd.registerPathHandler(
 				`/users/1/items/${item.key}/file`,
@@ -236,6 +229,80 @@ describe("ZoteroPane", function() {
 			assert.equal((yield Zotero.File.getContentsAsync(path)), text);
 		})
 	})
+	
+	
+	describe("#deleteSelectedItems()", function () {
+		it("should remove an item from My Publications", function* () {
+			var item = createUnsavedDataObject('item');
+			item.inPublications = true;
+			yield item.saveTx();
+			
+			yield zp.collectionsView.selectByID("P" + userLibraryID);
+			yield waitForItemsLoad(win);
+			var iv = zp.itemsView;
+			
+			var selected = iv.selectItem(item.id);
+			assert.ok(selected);
+			
+			var tree = doc.getElementById('zotero-items-tree');
+			tree.focus();
+			
+			yield Zotero.Promise.delay(1);
+			
+			var promise = waitForDialog();
+			var modifyPromise = waitForItemEvent('modify');
+			
+			var event = doc.createEvent("KeyboardEvent");
+			event.initKeyEvent("keypress", true, true, window, false, false, false, false, 46, 0);
+			tree.dispatchEvent(event);
+			yield promise;
+			yield modifyPromise;
+			
+			assert.isFalse(item.inPublications);
+			assert.isFalse(item.deleted);
+		});
+		
+		it("should move an item to trash from My Publications", function* () {
+			var item = createUnsavedDataObject('item');
+			item.inPublications = true;
+			yield item.saveTx();
+			
+			yield zp.collectionsView.selectByID("P" + userLibraryID);
+			yield waitForItemsLoad(win);
+			var iv = zp.itemsView;
+			
+			var selected = iv.selectItem(item.id);
+			assert.ok(selected);
+			
+			var tree = doc.getElementById('zotero-items-tree');
+			tree.focus();
+			
+			yield Zotero.Promise.delay(1);
+			
+			var promise = waitForDialog();
+			var modifyPromise = waitForItemEvent('modify');
+			
+			var event = doc.createEvent("KeyboardEvent");
+			event.initKeyEvent(
+				"keypress",
+				true,
+				true,
+				window,
+				false,
+				false,
+				!Zotero.isMac, // shift
+				Zotero.isMac, // meta
+				46,
+				0
+			);
+			tree.dispatchEvent(event);
+			yield promise;
+			yield modifyPromise;
+			
+			assert.isTrue(item.inPublications);
+			assert.isTrue(item.deleted);
+		});
+	});
 	
 	describe("#deleteSelectedCollection()", function () {
 		it("should delete collection but not descendant items by default", function* () {

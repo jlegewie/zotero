@@ -65,7 +65,7 @@ Zotero.Fulltext = Zotero.FullText = new function(){
 	var _pdfInfo = null; // nsIFile to executable
 	
 	var _idleObserverIsRegistered = false;
-	var _idleObserverDelay = 5;
+	var _idleObserverDelay = 30;
 	var _processorTimer = null;
 	var _processorBlacklist = {};
 	var _upgradeCheck = true;
@@ -99,8 +99,36 @@ Zotero.Fulltext = Zotero.FullText = new function(){
 		yield this.registerPDFTool('converter');
 		yield this.registerPDFTool('info');
 		
-		this.startContentProcessor();
-		Zotero.addShutdownListener(this.stopContentProcessor.bind(this));
+		Zotero.uiReadyPromise.delay(30000).then(() => {
+			this.startContentProcessor();
+			Zotero.addShutdownListener(this.stopContentProcessor.bind(this));
+			
+			// Start/stop content processor with full-text content syncing pref
+			Zotero.Prefs.registerObserver('sync.fulltext.enabled', (enabled) => {
+				if (enabled) {
+					this.startContentProcessor();
+				}
+				else {
+					this.stopContentProcessor();
+				}
+			});
+			
+			// Stop content processor during syncs
+			Zotero.Notifier.registerObserver(
+				{
+					notify: Zotero.Promise.method(function (event, type, ids, extraData) {
+						if (event == 'start') {
+							this.stopContentProcessor();
+						}
+						else if (event == 'stop') {
+							this.startContentProcessor();
+						}
+					}.bind(this))
+				},
+				['sync'],
+				'fulltext'
+			);
+		});
 	});
 	
 	
@@ -958,37 +986,41 @@ Zotero.Fulltext = Zotero.FullText = new function(){
 			return;
 		}
 		var itemID = item.id;
-		var currentVersion = this.getItemVersion(itemID)
+		var currentVersion = yield this.getItemVersion(itemID)
 		
-		var processorCacheFile = this.getItemProcessorCacheFile(item);
-		var itemCacheFile = this.getItemCacheFile(item);
+		var processorCacheFile = this.getItemProcessorCacheFile(item); // .zotero-ft-unprocessed
+		var itemCacheFile = this.getItemCacheFile(item); // .zotero-ft-cache
 		
 		// If a storage directory doesn't exist, create it
 		if (!processorCacheFile.parent.exists()) {
 			yield Zotero.Attachments.createDirectoryForItem(item);
 		}
 		
-		// If the local version is 0 but the text matches, just update the version
-		if (currentVersion == 0 && itemCacheFile.exists()
-				&& (yield Zotero.File.getContentsAsync(itemCacheFile)) == text) {
+		// If indexed previously and the existing extracted text matches the new text,
+		// just update the version
+		if (currentVersion !== false
+				&& itemCacheFile.exists()
+				&& (yield Zotero.File.getContentsAsync(itemCacheFile)) == data.content) {
 			Zotero.debug("Current full-text content matches remote for item "
 				+ libraryKey + " -- updating version");
-			var synced = SYNC_STATE_IN_SYNC;
-			yield Zotero.DB.queryAsync("UPDATE fulltextItems SET version=? WHERE itemID=?", [version, itemID]);
+			return Zotero.DB.queryAsync(
+				"REPLACE INTO fulltextItems (itemID, version, synced) VALUES (?, ?, ?)",
+				[itemID, version, SYNC_STATE_IN_SYNC]
+			);
 		}
-		else {
-			Zotero.debug("Writing full-text content and data for item " + libraryKey
-				+ " to " + processorCacheFile.path);
-			yield Zotero.File.putContentsAsync(processorCacheFile, JSON.stringify({
-				indexedChars: data.indexedChars,
-				totalChars: data.totalChars,
-				indexedPages: data.indexedPages,
-				totalPages: data.totalPages,
-				version: version,
-				text: data.content
-			}));
-			var synced = SYNC_STATE_TO_PROCESS;
-		}
+		
+		// Otherwise save data to -unprocessed file
+		Zotero.debug("Writing full-text content and data for item " + libraryKey
+			+ " to " + processorCacheFile.path);
+		yield Zotero.File.putContentsAsync(processorCacheFile, JSON.stringify({
+			indexedChars: data.indexedChars,
+			totalChars: data.totalChars,
+			indexedPages: data.indexedPages,
+			totalPages: data.totalPages,
+			version,
+			text: data.content
+		}));
+		var synced = SYNC_STATE_TO_PROCESS;
 		
 		// If indexed previously, update the sync state
 		if (currentVersion !== false) {
@@ -1010,8 +1042,10 @@ Zotero.Fulltext = Zotero.FullText = new function(){
 	 * Start the idle observer for the background content processor
 	 */
 	this.startContentProcessor = function () {
+		if (!Zotero.Prefs.get('sync.fulltext.enabled')) return;
+		
 		if (!_idleObserverIsRegistered) {
-			Zotero.debug("Initializing full-text content ingester idle observer");
+			Zotero.debug("Starting full-text content processor");
 			var idleService = Components.classes["@mozilla.org/widget/idleservice;1"]
 					.getService(Components.interfaces.nsIIdleService);
 			idleService.addIdleObserver(this.idleObserver, _idleObserverDelay);
@@ -1024,6 +1058,7 @@ Zotero.Fulltext = Zotero.FullText = new function(){
 	 */
 	this.stopContentProcessor = function () {
 		if (_idleObserverIsRegistered) {
+			Zotero.debug("Stopping full-text content processor");
 			var idleService = Components.classes["@mozilla.org/widget/idleservice;1"]
 				.getService(Components.interfaces.nsIIdleService);
 			idleService.removeIdleObserver(this.idleObserver, _idleObserverDelay);
@@ -1088,7 +1123,7 @@ Zotero.Fulltext = Zotero.FullText = new function(){
 				function () {
 					Zotero.Fulltext.processUnprocessedContent(itemIDs);
 				},
-				100,
+				200,
 				Components.interfaces.nsITimer.TYPE_ONE_SHOT
 			);
 		}

@@ -25,7 +25,50 @@ describe("Zotero.Tags", function () {
 		})
 	})
 	
+	describe("#rename()", function () {
+		it("should mark items as changed", function* () {
+			var item1 = yield createDataObject('item', { tags: [{ tag: "A" }], synced: true });
+			var item2 = yield createDataObject('item', { tags: [{ tag: "A" }, { tag: "B" }], synced: true });
+			var item3 = yield createDataObject('item', { tags: [{ tag: "B" }, { tag: "C" }], synced: true });
+			
+			yield Zotero.Tags.rename(item1.libraryID, "A", "D");
+			assert.isFalse(item1.synced);
+			assert.isFalse(item2.synced);
+			assert.isTrue(item3.synced);
+		});
+	});
+	
 	describe("#removeFromLibrary()", function () {
+		it("should remove tags in given library", function* () {
+			var libraryID = Zotero.Libraries.userLibraryID;
+			var groupLibraryID = (yield getGroup()).libraryID;
+			
+			var tags = [];
+			var items = [];
+			yield Zotero.DB.executeTransaction(function* () {
+				for (let i = 0; i < 10; i++) {
+					let tagName = Zotero.Utilities.randomString();
+					tags.push(tagName);
+					let item = createUnsavedDataObject('item');
+					item.addTag(tagName);
+					yield item.save();
+					items.push(item);
+				}
+			});
+			
+			var groupTagName = Zotero.Utilities.randomString();
+			var groupItem = createUnsavedDataObject('item', { libraryID: groupLibraryID });
+			groupItem.addTag(groupTagName);
+			yield groupItem.saveTx();
+			
+			var tagIDs = tags.map(tag => Zotero.Tags.getID(tag));
+			yield Zotero.Tags.removeFromLibrary(libraryID, tagIDs);
+			items.forEach(item => assert.lengthOf(item.getTags(), 0));
+			
+			// Group item should still have the tag
+			assert.lengthOf(groupItem.getTags(), 1);
+		})
+		
 		it("should reload tags of associated items", function* () {
 			var libraryID = Zotero.Libraries.userLibraryID;
 			
@@ -69,7 +112,7 @@ describe("Zotero.Tags", function () {
 	describe("#setColor()", function () {
 		var libraryID;
 		
-		before(function* () {
+		beforeEach(function* () {
 			libraryID = Zotero.Libraries.userLibraryID;
 			
 			// Clear library tag colors
@@ -96,6 +139,21 @@ describe("Zotero.Tags", function () {
 			assert.isArray(o);
 			assert.lengthOf(o, 2);
 			assert.sameMembers(o.map(c => c.color), [aColor, bColor]);
+		});
+		
+		it("should clear color for a tag", function* () {
+			var aColor = '#ABCDEF';
+			yield Zotero.Tags.setColor(libraryID, "A", aColor);
+			var o = Zotero.Tags.getColor(libraryID, "A")
+			assert.equal(o.color, aColor);
+			assert.equal(o.position, 0);
+			
+			yield Zotero.Tags.setColor(libraryID, "A", false);
+			assert.equal(Zotero.Tags.getColors(libraryID).size, 0);
+			assert.isFalse(Zotero.Tags.getColor(libraryID, "A"));
+			
+			var o = Zotero.SyncedSettings.get(libraryID, 'tagColors');
+			assert.isNull(o);
 		});
 	});
 })

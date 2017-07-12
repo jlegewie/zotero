@@ -130,9 +130,23 @@ Zotero_Preferences.Sync = {
 
 		// Try to acquire API key with current credentials
 		this.updateSyncIndicator('animated');
-		var json = yield Zotero.Sync.Runner.createAPIKeyFromCredentials(username, password);
-		this.updateSyncIndicator();
-
+		try {
+			var json = yield Zotero.Sync.Runner.createAPIKeyFromCredentials(username, password);
+		}
+		catch (e) {
+			setTimeout(function () {
+				Zotero.alert(
+					window,
+					Zotero.getString('general.error'),
+					e.message
+				);
+			});
+			throw e;
+		}
+		finally {
+			this.updateSyncIndicator();
+		}
+		
 		// Invalid credentials
 		if (!json) {
 			Zotero.alert(window,
@@ -318,9 +332,10 @@ Zotero_Preferences.Sync = {
 		// Add default rows
 		addRow(Zotero.getString("pane.collections.libraryAndFeeds"), "L" + Zotero.Libraries.userLibraryID, 
 			librariesToSkip.indexOf("L" + Zotero.Libraries.userLibraryID) == -1);
-		addRow(Zotero.getString("pane.collections.publications"), "L" + Zotero.Libraries.publicationsLibraryID, 
-			librariesToSkip.indexOf("L" + Zotero.Libraries.publicationsLibraryID) == -1);
 		
+		// Sort groups
+		var collation = Zotero.getLocaleCollation();
+		groups.sort((a, b) => collation.compareString(1, a.data.name, b.data.name));
 		// Add group rows
 		for (let group of groups) {
 			addRow(group.data.name, "G" + group.id, librariesToSkip.indexOf("G" + group.id) == -1);
@@ -742,7 +757,7 @@ Zotero_Preferences.Sync = {
 				var index = ps.confirmEx(
 					null,
 					Zotero.getString('general.warning'),
-					Zotero.getString('zotero.preferences.sync.reset.fileSyncHistory'),
+					Zotero.getString('zotero.preferences.sync.reset.fileSyncHistory', Zotero.clientName),
 					buttonFlags,
 					Zotero.getString('general.reset'),
 					null, null, null, {}

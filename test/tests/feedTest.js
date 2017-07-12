@@ -12,7 +12,7 @@ describe("Zotero.Feed", function() {
 	describe("#constructor()", function() {
 		it("should accept required fields as arguments", function* () {
 			let feed = new Zotero.Feed();
-			yield assert.isRejected(feed.saveTx(), /^Error: Feed name not set$/);
+			yield assert.isRejected(feed.saveTx(), /^Feed name not set$/);
 			
 			feed = new Zotero.Feed({
 				name: 'Test ' + Zotero.randomString(),
@@ -93,28 +93,28 @@ describe("Zotero.Feed", function() {
 		});
 		it("should throw if name or url are missing", function *() {
 			let feed = new Zotero.Feed();
-			yield assert.isRejected(feed.saveTx(), /^Error: Feed name not set$/);
+			yield assert.isRejected(feed.saveTx(), /^Feed name not set$/);
 			
 			feed.name = 'Test ' + Zotero.randomString();
-			yield assert.isRejected(feed.saveTx(), /^Error: Feed URL not set$/);
+			yield assert.isRejected(feed.saveTx(), /^Feed URL not set$/);
 			
 			feed = new Zotero.Feed();
 			feed.url = 'http://' + Zotero.randomString() + '.com';
-			yield assert.isRejected(feed.saveTx(), /^Error: Feed name not set$/);
+			yield assert.isRejected(feed.saveTx(), /^Feed name not set$/);
 		});
 		it("should not allow saving a feed with the same url", function *() {
 			let url = 'http://' + Zotero.randomString() + '.com';
 			let feed1 = yield createFeed({ url });
 			
 			let feed2 = new Zotero.Feed({ name: 'Test ' + Zotero.randomString(), url });
-			yield assert.isRejected(feed2.saveTx(), /^Error: Feed for URL already exists: /);
+			yield assert.isRejected(feed2.saveTx(), /^Feed for URL already exists: /);
 			
 			// Perform check with normalized URL
 			feed2.url = url + '/';
-			yield assert.isRejected(feed2.saveTx(), /^Error: Feed for URL already exists: /);
+			yield assert.isRejected(feed2.saveTx(), /^Feed for URL already exists: /);
 			
 			feed2.url = url.toUpperCase();
-			yield assert.isRejected(feed2.saveTx(), /^Error: Feed for URL already exists: /);
+			yield assert.isRejected(feed2.saveTx(), /^Feed for URL already exists: /);
 		});
 		it("should allow saving a feed with the same name", function *() {
 			let name = 'Test ' + Zotero.randomString();
@@ -306,14 +306,11 @@ describe("Zotero.Feed", function() {
 		var modifiedFeedUrl = getTestDataUrl("feedModified.rss");
 		
 		before(function() {
-			scheduleNextFeedCheck = sinon.stub(Zotero.Feeds, 'scheduleNextFeedCheck');
-		});
-		after(function() {
-			scheduleNextFeedCheck.restore();
+			scheduleNextFeedCheck = sinon.stub(Zotero.Feeds, 'scheduleNextFeedCheck').resolves();
 		});
 		
 		beforeEach(function* (){
-			scheduleNextFeedCheck.reset();
+			scheduleNextFeedCheck.resetHistory();
 			feed = yield createFeed();
 			feed._feedUrl = feedUrl;
 			yield feed.updateFeed();
@@ -323,13 +320,15 @@ describe("Zotero.Feed", function() {
 			yield clearFeeds();
 		});
 		
+		after(function() {
+			scheduleNextFeedCheck.restore();
+		});
+		
 		it('should schedule next feed check', function* () {
-			
 			let feed = yield createFeed();
 			feed._feedUrl = feedUrl;
 			yield feed.updateFeed();
 			assert.equal(scheduleNextFeedCheck.called, true);
-			
 		});
 		
 		it('should add new feed items', function* () {
@@ -405,11 +404,11 @@ describe("Zotero.Feed", function() {
 		})
 		it("should not allow adding collections", function* () {
 			let collection = new Zotero.Collection({ name: 'test', libraryID: feed.libraryID });
-			yield assert.isRejected(collection.saveTx({ skipEditCheck: true }), /^Error: Cannot add /);
+			yield assert.isRejected(collection.saveTx({ skipEditCheck: true }), /^Cannot add /);
 		});
 		it("should not allow adding saved search", function* () {
 			let search = new Zotero.Search({ name: 'test', libraryID: feed.libraryID });
-			yield assert.isRejected(search.saveTx({ skipEditCheck: true }), /^Error: Cannot add /);
+			yield assert.isRejected(search.saveTx({ skipEditCheck: true }), /^Cannot add /);
 		});
 		it("should allow adding feed item", function* () {
 			let feedItem = new Zotero.FeedItem('book', { guid: Zotero.randomString() });

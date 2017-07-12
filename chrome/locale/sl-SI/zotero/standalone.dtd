@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Orodja">
 <!ENTITY toolsMenu.accesskey "d">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Dodatki">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "R">
 <!ENTITY helpFeedbackPage.label "Povratne informacije ...">
 <!ENTITY helpFeedbackPage.accesskey "I">
+
 <!ENTITY helpReportErrors.label "Poročaj o napakah Zoteru ...">
 <!ENTITY helpReportErrors.accesskey "P">
 <!ENTITY helpCheckForUpdates.label "Poišči posodobitve ...">

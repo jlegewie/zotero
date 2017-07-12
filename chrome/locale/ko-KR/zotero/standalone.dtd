@@ -1,4 +1,4 @@
-<!ENTITY preferencesCmdMac.label "설정">
+<!ENTITY preferencesCmdMac.label "Preferences…">
 <!ENTITY preferencesCmdMac.commandkey ",">
 <!ENTITY servicesMenuMac.label "서비스">
 <!ENTITY hideThisAppCmdMac.label "&brandShortName; 감추기">
@@ -23,9 +23,9 @@
 <!ENTITY closeCmd.label "닫기">
 <!ENTITY closeCmd.key "W">
 <!ENTITY closeCmd.accesskey "C">
-<!ENTITY importCmd.label "Import…">
+<!ENTITY importCmd.label "불러오기...">
 <!ENTITY importCmd.key "I">
-<!ENTITY importFromClipboardCmd.label "Import from Clipboard">
+<!ENTITY importFromClipboardCmd.label "클립보드에서 불러오기">
 <!ENTITY quitApplicationCmdWin.label "종료">
 <!ENTITY quitApplicationCmdWin.accesskey "x">
 <!ENTITY quitApplicationCmd.label "종료">
@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "도구">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "확장 기능">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "의견 제출...">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Zotero 오류 보고서 보내기...">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "업데이트 확인...">

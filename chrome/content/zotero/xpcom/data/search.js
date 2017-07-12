@@ -171,20 +171,22 @@ Zotero.Search.prototype._saveData = Zotero.Promise.coroutine(function* (env) {
 		{ string: this.name }
 	);
 	
-	if (isNew) {
-		env.sqlColumns.unshift('savedSearchID');
-		env.sqlValues.unshift(searchID ? { int: searchID } : null);
-		
-		let placeholders = env.sqlColumns.map(() => '?').join();
-		let sql = "INSERT INTO savedSearches (" + env.sqlColumns.join(', ') + ") "
-			+ "VALUES (" + placeholders + ")";
-		yield Zotero.DB.queryAsync(sql, env.sqlValues);
-	}
-	else {
-		let sql = 'UPDATE savedSearches SET '
-			+ env.sqlColumns.map(x => x + '=?').join(', ') + ' WHERE savedSearchID=?';
-		env.sqlValues.push(searchID ? { int: searchID } : null);
-		yield Zotero.DB.queryAsync(sql, env.sqlValues);
+	if (env.sqlColumns.length) {
+		if (isNew) {
+			env.sqlColumns.unshift('savedSearchID');
+			env.sqlValues.unshift(searchID ? { int: searchID } : null);
+			
+			let placeholders = env.sqlColumns.map(() => '?').join();
+			let sql = "INSERT INTO savedSearches (" + env.sqlColumns.join(', ') + ") "
+				+ "VALUES (" + placeholders + ")";
+			yield Zotero.DB.queryAsync(sql, env.sqlValues);
+		}
+		else {
+			let sql = 'UPDATE savedSearches SET '
+				+ env.sqlColumns.map(x => x + '=?').join(', ') + ' WHERE savedSearchID=?';
+			env.sqlValues.push(searchID ? { int: searchID } : null);
+			yield Zotero.DB.queryAsync(sql, env.sqlValues);
+		}
 	}
 	
 	if (this._changed.conditions) {
@@ -582,9 +584,6 @@ Zotero.Search.prototype.search = Zotero.Promise.coroutine(function* (asTempTable
 				if (!ids) {
 					return [];
 				}
-				
-				Zotero.debug('g');
-				Zotero.debug(ids);
 				tmpTable = yield Zotero.Search.idsToTempTable(ids);
 			}
 			// Otherwise, just copy to temp table directly
@@ -897,26 +896,20 @@ Zotero.Search.prototype.getSQLParams = Zotero.Promise.coroutine(function* () {
 /*
  * Batch insert
  */
-Zotero.Search.idsToTempTable = function (ids) {
-	const N_COMBINED_INSERTS = 1000;
-	
+Zotero.Search.idsToTempTable = Zotero.Promise.coroutine(function* (ids) {
 	var tmpTable = "tmpSearchResults_" + Zotero.randomString(8);
 	
-	return Zotero.DB.executeTransaction(function* () {
-		var sql = "CREATE TEMPORARY TABLE " + tmpTable + " (itemID INTEGER PRIMARY KEY)";
-		yield Zotero.DB.queryAsync(sql);
-		
-		var ids2 = ids ? ids.concat() : [];
-		while (ids2.length) {
-			let chunk = ids2.splice(0, N_COMBINED_INSERTS);
-			let sql = 'INSERT INTO ' + tmpTable + ' VALUES '
-				+ chunk.map((x) => "(" + parseInt(x) + ")").join(", ");
-			yield Zotero.DB.queryAsync(sql, false, { debug: false });
-		}
-		
-		return tmpTable;
-	});
-}
+	Zotero.debug(`Creating ${tmpTable} with ${ids.length} item${ids.length != 1 ? 's' : ''}`);
+	var sql = "CREATE TEMPORARY TABLE " + tmpTable + " AS "
+		+ "WITH cte(itemID) AS ("
+			+ "VALUES " + ids.map(id => "(" + parseInt(id) + ")").join(',')
+		+ ") "
+		+ "SELECT * FROM cte";
+	yield Zotero.DB.queryAsync(sql, false, { debug: false });
+	yield Zotero.DB.queryAsync(`CREATE UNIQUE INDEX ${tmpTable}_itemID ON ${tmpTable}(itemID)`);
+	
+	return tmpTable;
+});
 
 
 /*
@@ -998,6 +991,10 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 					var unfiled = condition.operator == 'true';
 					continue;
 				
+				case 'publications':
+					var publications = condition.operator == 'true';
+					continue;
+				
 				// Search subcollections
 				case 'recursive':
 					var recursive = condition.operator == 'true';
@@ -1051,7 +1048,13 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 			+ "AND itemID NOT IN "
 			+ "(SELECT itemID FROM itemAttachments WHERE parentItemID IS NOT NULL "
 			+ "UNION SELECT itemID FROM itemNotes WHERE parentItemID IS NOT NULL)"
-			+ ")";
+			+ ") "
+			// Exclude My Publications
+			+ "AND itemID NOT IN (SELECT itemID FROM publicationsItems)";
+	}
+	
+	if (publications) {
+		sql += " AND (itemID IN (SELECT itemID FROM publicationsItems))";
 	}
 	
 	// Limit to library search belongs to
@@ -1295,9 +1298,6 @@ Zotero.Search.prototype._buildQuery = Zotero.Promise.coroutine(function* () {
 						break;
 					
 					case 'tempTable':
-						if (!condition.value.match(/^[a-zA-Z0-9]+$/)) {
-							throw ("Invalid temp table '" + condition.value + "'");
-						}
 						condSQL += "itemID IN (SELECT id FROM " + condition.value + ")";
 						skipOperators = true;
 						break;

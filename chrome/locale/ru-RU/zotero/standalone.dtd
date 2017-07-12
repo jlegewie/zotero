@@ -25,7 +25,7 @@
 <!ENTITY closeCmd.accesskey "C">
 <!ENTITY importCmd.label "Import…">
 <!ENTITY importCmd.key "I">
-<!ENTITY importFromClipboardCmd.label "Import from Clipboard">
+<!ENTITY importFromClipboardCmd.label "Импортировать из буфера обмена">
 <!ENTITY quitApplicationCmdWin.label "Выход">
 <!ENTITY quitApplicationCmdWin.accesskey "x">
 <!ENTITY quitApplicationCmd.label "Выйти">
@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "Инструменты">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Дополнения">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "Отправить отзыв...">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "Отправить сообщение об ошибке в Zotero...">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "Поиск обновлений...">

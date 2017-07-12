@@ -764,6 +764,165 @@ describe("Zotero.Translate", function() {
 			});
 		});
 	});
+	
+	
+	describe("Error Handling", function () {
+		it("should propagate saveItems() errors from synchronous doImport()", function* () {
+			var items = [
+				{
+					// Invalid object
+				},
+				{
+					itemType: "book",
+					title: "B"
+				}
+			];
+			
+			var added = 0;
+			var notifierID = Zotero.Notifier.registerObserver({
+				notify: function (event, type, ids, extraData) {
+					added++;
+				}
+			}, ['item']);
+			
+			var translation = new Zotero.Translate.Import();
+			translation.setString("");
+			translation.setTranslator(buildDummyTranslator(
+				"import",
+				"function detectImport() {}"
+				+ "function doImport() {"
+				+ "	var json = JSON.parse('" + JSON.stringify(items).replace(/['\\]/g, "\\$&") + "');"
+				+ "	for (let o of json) {"
+				+ "		let item = new Zotero.Item;"
+				+ "		for (let field in o) { item[field] = o[field]; }"
+				+ "		item.complete();"
+				+ "	}"
+				+ "}"
+			));
+			var e = yield getPromiseError(translation.translate());
+			Zotero.Notifier.unregisterObserver(notifierID);
+			assert.ok(e);
+			
+			// Saving should be stopped without any saved items
+			assert.equal(added, 0);
+			assert.equal(translation._savingItems, 0);
+			assert.equal(translation._runningAsyncProcesses, 0);
+			assert.isNull(translation._currentState);
+		});
+		
+		it("should propagate saveItems() errors from asynchronous doImport()", function* () {
+			var items = [
+				{
+					// Invalid object
+				},
+				{
+					itemType: "book",
+					title: "B"
+				}
+			];
+			
+			var added = 0;
+			var notifierID = Zotero.Notifier.registerObserver({
+				notify: function (event, type, ids, extraData) {
+					added++;
+				}
+			}, ['item']);
+			
+			var translation = new Zotero.Translate.Import();
+			translation.setString("");
+			translation.setTranslator(buildDummyTranslator(
+				"import",
+				"function detectImport() {}"
+					+ "function doImport() {"
+					+ "	var json = JSON.parse('" + JSON.stringify(items).replace(/['\\]/g, "\\$&") + "');"
+					+ "	return new Promise(function (resolve, reject) {"
+					+ "		function next() {"
+					+ "			var data = json.shift();"
+					+ "			if (!data) {"
+					+ "				resolve();"
+					+ "				return;"
+					+ "			}"
+					+ "			var item = new Zotero.Item;"
+					+ "			for (let field in data) { item[field] = data[field]; }"
+					+ "			item.complete().then(next).catch(reject);"
+					+ "		}"
+					+ "		next();"
+					+ "	});"
+					+ "}",
+				{
+					configOptions: {
+						async: true
+					}
+				}
+			));
+			var e = yield getPromiseError(translation.translate());
+			Zotero.Notifier.unregisterObserver(notifierID);
+			assert.ok(e);
+			
+			// Saving should be stopped without any saved items
+			assert.equal(added, 0);
+			assert.equal(translation._savingItems, 0);
+			assert.equal(translation._runningAsyncProcesses, 0);
+			assert.isNull(translation._currentState);
+		});
+		
+		it("should propagate errors from saveItems with synchronous doSearch()", function* () {
+			var stub = sinon.stub(Zotero.Translate.ItemSaver.prototype, "saveItems");
+			stub.returns(Zotero.Promise.reject(new Error("Save error")));
+			
+			var translation = new Zotero.Translate.Search();
+			translation.setTranslator(buildDummyTranslator(
+				"search",
+				"function detectSearch() {}"
+					+ "function doSearch() {"
+					+ "	var item = new Zotero.Item('journalArticle');"
+					+ "	item.itemType = 'book';"
+					+ "	item.title = 'A';"
+					+ "	item.complete();"
+					+ "}"
+			));
+			translation.setSearch({ itemType: "journalArticle", DOI: "10.111/Test"});
+			var e = yield getPromiseError(translation.translate({
+				libraryID: Zotero.Libraries.userLibraryID,
+				saveAttachments: false
+			}));
+			assert.ok(e);
+			
+			stub.restore();
+		});
+		
+		it("should propagate errors from saveItems() with asynchronous doSearch()", function* () {
+			var stub = sinon.stub(Zotero.Translate.ItemSaver.prototype, "saveItems");
+			stub.returns(Zotero.Promise.reject(new Error("Save error")));
+			
+			var translation = new Zotero.Translate.Search();
+			translation.setTranslator(buildDummyTranslator(
+				"search",
+				"function detectSearch() {}"
+					+ "function doSearch() {"
+					+ "	var item = new Zotero.Item('journalArticle');"
+					+ "	item.itemType = 'book';"
+					+ "	item.title = 'A';"
+					+ "	return new Promise(function (resolve, reject) {"
+					+ "		item.complete().then(next).catch(reject);"
+					+ "	});"
+					+ "}",
+				{
+					configOptions: {
+						async: true
+					}
+				}
+			));
+			translation.setSearch({ itemType: "journalArticle", DOI: "10.111/Test"});
+			var e = yield getPromiseError(translation.translate({
+				libraryID: Zotero.Libraries.userLibraryID,
+				saveAttachments: false
+			}));
+			assert.ok(e);
+			
+			stub.restore();
+		});
+	});
 });
 
 describe("Zotero.Translate.ItemGetter", function() {
@@ -1373,6 +1532,26 @@ describe("Zotero.Translate.ItemGetter", function() {
 			var path = item.getFilePath();
 			// Delete attachment file
 			yield OS.File.remove(path);
+			
+			var translation = new Zotero.Translate.Export();
+			var tmpDir = yield getTempDirectory();
+			var exportDir = OS.Path.join(tmpDir, 'export');
+			translation.setLocation(Zotero.File.pathToFile(exportDir));
+			translation.setItems([item]);
+			translation.setTranslator('14763d24-8ba0-45df-8f52-b8d1108e7ac9'); // Zotero RDF
+			translation.setDisplayOptions({
+				exportFileData: true
+			});
+			yield translation.translate();
+			
+			var exportFile = OS.Path.join(exportDir, 'export.rdf');
+			assert.isAbove((yield OS.File.stat(exportFile)).size, 0);
+		});
+		
+		it("should handle empty attachment path", function* () {
+			var item = yield importFileAttachment('test.png');
+			item._attachmentPath = '';
+			assert.equal(item.attachmentPath, '');
 			
 			var translation = new Zotero.Translate.Export();
 			var tmpDir = yield getTempDirectory();

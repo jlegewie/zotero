@@ -171,6 +171,14 @@ Zotero_Preferences.Advanced = {
 				
 				return;
 			}
+			
+			try {
+				yield Zotero.DB.vacuum();
+			}
+			catch (e) {
+				Zotero.logError(e);
+				ok = false;
+			}
 		}
 		var str = ok ? 'passed' : 'failed';
 		
@@ -206,7 +214,7 @@ Zotero_Preferences.Advanced = {
 	},
 	
 	
-	resetTranslators: function () {
+	resetTranslators: async function () {
 		var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
 			.getService(Components.interfaces.nsIPromptService);
 		
@@ -221,17 +229,22 @@ Zotero_Preferences.Advanced = {
 			null, null, null, {});
 		
 		if (index == 0) {
-			Zotero.Schema.resetTranslators()
-			.then(function () {
+			let button = document.getElementById('reset-translators-button');
+			button.disabled = true;
+			try {
+				await Zotero.Schema.resetTranslators();
 				if (Zotero_Preferences.Export) {
 					Zotero_Preferences.Export.populateQuickCopyList();
 				}
-			});
+			}
+			finally {
+				button.disabled = false;
+			}
 		}
 	},
 	
 	
-	resetStyles: function () {
+	resetStyles: async function () {
 		var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
 			.getService(Components.interfaces.nsIPromptService);
 		
@@ -246,12 +259,17 @@ Zotero_Preferences.Advanced = {
 			null, null, null, {});
 		
 		if (index == 0) {
-			Zotero.Schema.resetStyles()
-			.then(function () {
+			let button = document.getElementById('reset-styles-button');
+			button.disabled = true;
+			try {
+				await Zotero.Schema.resetStyles()
 				if (Zotero_Preferences.Export) {
 					Zotero_Preferences.Export.populateQuickCopyList();
 				}
-			});
+			}
+			finally {
+				button.disabled = false;
+			}
 		}
 	},
 	

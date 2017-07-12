@@ -156,6 +156,7 @@
 <!ENTITY zotero.tagSelector.loadingTags "Wczytywanie znaczników...">
 <!ENTITY zotero.tagSelector.showAutomatic "Wyświetl etykiety automatyczne">
 <!ENTITY zotero.tagSelector.displayAllInLibrary "Wyświetl wszystkie etykiety w tej bibliotece">
+<!ENTITY zotero.tagSelector.deleteAutomaticInLibrary "Usuń automatycznie nadane etykiety w tej bibliotece...">
 <!ENTITY zotero.tagSelector.clearAll "Odznacz wszystkie">
 <!ENTITY zotero.tagSelector.assignColor "Przypisz kolor...">
 <!ENTITY zotero.tagSelector.renameTag "Zmień nazwę etykiety...">
@@ -224,22 +225,20 @@
 <!ENTITY zotero.integration.prefs.footnotes.label "Przypisy dolne">
 <!ENTITY zotero.integration.prefs.endnotes.label "Przypisy końcowe">
 
-<!ENTITY zotero.integration.prefs.formatUsing.label "Używany format:">
+<!ENTITY zotero.integration.prefs.formatUsing.label "Zapisz cytowania jako:">
 <!ENTITY zotero.integration.prefs.bookmarks.label "Zakładki">
-<!ENTITY zotero.integration.prefs.bookmarks.caption "Zakładki są zabezpieczone przez programy Microsoft Word i LibreOffice, ale w wyjątkowych przypadkach mogą być modyfikowane. Z powodów zgodności, cytowania nie mogą być wstawiane do przypisów dolnych i przypisów końcowych, jeśli ta opcja jest wybrana.">
+<!ENTITY zotero.integration.prefs.bookmarks.caption "Zakładki mogą być współdzielone między edytorami Word i LibreOffice Writer, ale w razie ich przypadkowej modyfikacji mogą wystąpić błędy i nie mogą być one wstawiane do przypisów dolnych.">
 
 
-<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.label "Automatycznie skróć tytuły czasopism">
-<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.caption "Skróty czasopism MEDLINE zostaną automatycznie utworzone z wykorzystaniem tytułów czasopism. Pole &quot;Skrót czasopisma&quot; będzie zignorowane.">
-
-<!ENTITY zotero.integration.prefs.storeReferences.label "Zapisz cytowania w dokumencie">
-<!ENTITY zotero.integration.prefs.storeReferences.caption "Storing references in your document slightly increases file size, but will allow you to share your document with others without using a Zotero group. Zotero 3.0 or later is required to update documents created with this option.">
+<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.label "Użyj skrótów czasopism w formacie MEDLINE">
+<!ENTITY zotero.integration.prefs.automaticJournalAbbeviations.caption "Pole &quot;Skrót czasopisma&quot; będzie ignorowane.">
 
 <!ENTITY zotero.integration.showEditor.label "Pokaż edytor">
 <!ENTITY zotero.integration.classicView.label "Widok klasyczny">
 
 <!ENTITY zotero.integration.references.label "Pozycje w bibliografii">
 
+<!ENTITY zotero.sync.stop "Zatrzymaj synchronizację">
 <!ENTITY zotero.sync.error "Błąd synchronizacji">
 <!ENTITY zotero.sync.storage.progress "Postęp:">
 <!ENTITY zotero.sync.storage.downloads "Pobrano:">

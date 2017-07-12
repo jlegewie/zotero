@@ -44,6 +44,8 @@
 
 <!ENTITY toolsMenu.label "ឧបករណ៏">
 <!ENTITY toolsMenu.accesskey "T">
+<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "កម្មវិធីកម្ជាប់បន្ថែម">
 
 
@@ -69,6 +71,7 @@
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
 <!ENTITY helpFeedbackPage.label "ដាក់ជូននូវការឆ្លើយតប…">
 <!ENTITY helpFeedbackPage.accesskey "S">
+
 <!ENTITY helpReportErrors.label "រាយការណ៏កំហុសទៅកាន់ហ្ស៊ូតេរ៉ូ…">
 <!ENTITY helpReportErrors.accesskey "R">
 <!ENTITY helpCheckForUpdates.label "ស្វែងរកទំនើបកម្ម…">

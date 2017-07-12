@@ -451,9 +451,9 @@ Zotero.DataObject.prototype.setRelations = function (newRelations) {
  * calling this directly.
  *
  * @param {Integer} [libraryID]
- * @return {Zotero.DataObject|false} Linked object, or false if not found
+ * @return {Promise<Zotero.DataObject|false>} Linked object, or false if not found
  */
-Zotero.DataObject.prototype._getLinkedObject = function (libraryID, bidirectional) {
+Zotero.DataObject.prototype._getLinkedObject = Zotero.Promise.coroutine(function* (libraryID, bidirectional) {
 	if (!libraryID) {
 		throw new Error("libraryID not provided");
 	}
@@ -471,7 +471,7 @@ Zotero.DataObject.prototype._getLinkedObject = function (libraryID, bidirectiona
 	for (let i = 0; i < uris.length; i++) {
 		let uri = uris[i];
 		if (uri.startsWith(libraryObjectPrefix)) {
-			let obj = Zotero.URI['getURI' + this._ObjectType](uri);
+			let obj = yield Zotero.URI['getURI' + this._ObjectType](uri);
 			if (!obj) {
 				Zotero.debug("Referenced linked " + this._objectType + " '" + uri + "' not found "
 					+ "in Zotero." + this._ObjectType + "::getLinked" + this._ObjectType + "()", 2);
@@ -501,7 +501,7 @@ Zotero.DataObject.prototype._getLinkedObject = function (libraryID, bidirectiona
 	}
 	
 	return false;
-};
+});
 
 
 /**
@@ -626,9 +626,7 @@ Zotero.DataObject.prototype.reload = Zotero.Promise.coroutine(function* (dataTyp
 	}
 	
 	if (!dataTypes) {
-		dataTypes = Object.keys(this._loaded).filter(
-			val => this._loaded[val]
-		);
+		dataTypes = Object.keys(this._loaded).filter(type => this._loaded[type]);
 	}
 	
 	if (dataTypes && dataTypes.length) {
@@ -644,7 +642,7 @@ Zotero.DataObject.prototype.reload = Zotero.Promise.coroutine(function* (dataTyp
 });
 
 /**
- * Checks wheteher a given data type has been loaded
+ * Checks whether a given data type has been loaded
  *
  * @param {String} [dataType=primaryData] Data type to check
  * @throws {Zotero.DataObjects.UnloadedDataException} If not loaded, unless the
@@ -803,16 +801,6 @@ Zotero.DataObject.prototype.save = Zotero.Promise.coroutine(function* (options =
 		env.options.tx = true;
 	}
 	
-	var proceed = yield this._initSave(env);
-	if (!proceed) return false;
-	
-	if (env.isNew) {
-		Zotero.debug('Saving data for new ' + this._objectType + ' to database', 4);
-	}
-	else {
-		Zotero.debug('Updating database with new ' + this._objectType + ' data', 4);
-	}
-	
 	if (env.options.skipAll) {
 		[
 			'skipDateModifiedUpdate',
@@ -822,6 +810,16 @@ Zotero.DataObject.prototype.save = Zotero.Promise.coroutine(function* (options =
 			'skipNotifier',
 			'skipSelect'
 		].forEach(x => env.options[x] = true);
+	}
+	
+	var proceed = yield this._initSave(env);
+	if (!proceed) return false;
+	
+	if (env.isNew) {
+		Zotero.debug('Saving data for new ' + this._objectType + ' to database', 4);
+	}
+	else {
+		Zotero.debug('Updating database with new ' + this._objectType + ' data', 4);
 	}
 	
 	try {
@@ -932,14 +930,19 @@ Zotero.DataObject.prototype._saveData = function (env) {
 	var libraryID = env.libraryID = this.libraryID || Zotero.Libraries.userLibraryID;
 	var key = env.key = this._key = this.key ? this.key : this._generateKey();
 	
-	env.sqlColumns = [
-		'libraryID',
-		'key'
-	];
-	env.sqlValues = [
-		libraryID,
-		key
-	];
+	env.sqlColumns = [];
+	env.sqlValues = [];
+	
+	if (env.isNew) {
+		env.sqlColumns.push(
+			'libraryID',
+			'key'
+		);
+		env.sqlValues.push(
+			libraryID,
+			key
+		);
+	}
 	
 	if (this._changed.primaryData && this._changed.primaryData.version) {
 		env.sqlColumns.push('version');
@@ -956,7 +959,7 @@ Zotero.DataObject.prototype._saveData = function (env) {
 		env.sqlValues.push(0);
 	}
 	
-	if (env.isNew || !env.options.skipClientDateModified) {
+	if (env.isNew || !env.options.skipClientDateModifiedUpdate) {
 		env.sqlColumns.push('clientDateModified');
 		env.sqlValues.push(Zotero.DB.transactionDateTime);
 	}
@@ -1110,7 +1113,7 @@ Zotero.DataObject.prototype.updateSynced = Zotero.Promise.coroutine(function* (s
 	}
 	
 	if (this._changed.primaryData && this._changed.primaryData.synced) {
-		if (Objects.keys(this._changed.primaryData).length == 1) {
+		if (Object.keys(this._changed.primaryData).length == 1) {
 			delete this._changed.primaryData;
 		}
 		else {

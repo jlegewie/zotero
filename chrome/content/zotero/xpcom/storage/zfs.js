@@ -145,8 +145,8 @@ Zotero.Sync.Storage.Mode.ZFS.prototype = {
 					
 					return false;
 				}),
-				onProgress: function (a, b, c) {
-					request.onProgress(a, b, c)
+				onProgress: function (req, progress, progressMax) {
+					request.onProgress(progress, progressMax);
 				},
 				onStop: function (req, status, res) {
 					request.setChannel(false);
@@ -612,7 +612,11 @@ Zotero.Sync.Storage.Mode.ZFS.prototype = {
 		var file = yield this._getUploadFile(item);
 		
 		Components.utils.importGlobalProperties(["File"]);
-		file = new File(file);
+		file = File.createFromFileName ? File.createFromFileName(file.path) : new File(file);
+		// File.createFromFileName() returns a Promise in Fx54+
+		if (file.then) {
+			file = yield file;
+		}
 		
 		var blob = new Blob([params.prefix, file, params.suffix]);
 		

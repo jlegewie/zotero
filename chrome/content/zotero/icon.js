@@ -257,14 +257,10 @@ function getTooltipText(button) {
 			
 			// Use defaults if necessary
 			if (!text) {
-				// Get the stringbundle manually
 				let src = 'chrome://zotero/locale/zotero.properties';
-				let localeService = Components.classes['@mozilla.org/intl/nslocaleservice;1']
-					.getService(Components.interfaces.nsILocaleService);
-				let appLocale = localeService.getApplicationLocale();
 				let stringBundleService = Components.classes["@mozilla.org/intl/stringbundle;1"]
 					.getService(Components.interfaces.nsIStringBundleService);
-				let stringBundle = stringBundleService.createBundle(src, appLocale);
+				let stringBundle = stringBundleService.createBundle(src);
 				text = stringBundle.GetStringFromName('startupError');
 			}
 		}

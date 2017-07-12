@@ -115,10 +115,7 @@ Zotero.Debug = new function () {
 			slowSuffix = "\x1b[0m";
 		}
 		
-		// TODO: Replace with String.prototype.padStart once available (Fx48)
-		while (("" + delta).length < 7) {
-			delta = '0' + delta;
-		}
+		delta = ("" + delta).padStart(7, "0")
 		
 		deltaStr = "(" + slowPrefix + "+" + delta + slowSuffix + ")";
 		if (_store) {
@@ -211,7 +208,7 @@ Zotero.Debug = new function () {
 
 		return Zotero.getSystemInfo().then(function(sysInfo) {
 			if (Zotero.isConnector) {
-				return Zotero.Error.getErrors().then(function(errors) {
+				return Zotero.Errors.getErrors().then(function(errors) {
 					return errors.join('\n\n') +
 						"\n\n" + sysInfo + "\n\n" +
 						"=========================================================\n\n" +

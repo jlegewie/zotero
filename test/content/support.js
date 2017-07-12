@@ -1,3 +1,5 @@
+chai.use(chaiAsPromised);
+
 // Useful "constants"
 var sqlDateTimeRe = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 var isoDateTimeRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -35,7 +37,7 @@ function loadWindow(winurl, argument) {
  * @return {Promise<ChromeWindow>}
  */
 function loadBrowserWindow() {
-	var win = window.openDialog("chrome://browser/content/browser.xul", "", "all,height=400,width=1000");
+	var win = window.openDialog("chrome://browser/content/browser.xul", "", "all,height=700,width=1000");
 	return waitForDOMEvent(win, "load").then(function() {
 		return win;
 	});
@@ -58,6 +60,22 @@ var loadZoteroPane = Zotero.Promise.coroutine(function* (win) {
 	return win;
 });
 
+var loadPrefPane = Zotero.Promise.coroutine(function* (paneName) {
+	var id = 'zotero-prefpane-' + paneName;
+	var win = yield loadWindow("chrome://zotero/content/preferences/preferences.xul", {
+		pane: id
+	});
+	var doc = win.document;
+	var defer = Zotero.Promise.defer();
+	var pane = doc.getElementById(id);
+	if (!pane.loaded) {
+		pane.addEventListener('paneload', () => defer.resolve());
+		yield defer.promise;
+	}
+	return win;
+});
+
+
 /**
  * Waits for a window with a specific URL to open. Returns a promise for the window, and
  * optionally passes the window to a callback immediately for use with modal dialogs,
@@ -65,39 +83,39 @@ var loadZoteroPane = Zotero.Promise.coroutine(function* (win) {
  */
 function waitForWindow(uri, callback) {
 	var deferred = Zotero.Promise.defer();
-	Components.utils.import("resource://gre/modules/Services.jsm");
 	var loadobserver = function(ev) {
 		ev.originalTarget.removeEventListener("load", loadobserver, false);
 		Zotero.debug("Window opened: " + ev.target.location.href);
-		if(ev.target.location.href == uri) {
-			Services.ww.unregisterNotification(winobserver);
-			var win = ev.target.docShell
-				.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-				.getInterface(Components.interfaces.nsIDOMWindow);
-			// Give window code time to run on load
-			win.setTimeout(function () {
-				if (callback) {
-					try {
-						// If callback is a promise, wait for it
-						let maybePromise = callback(win);
-						if (maybePromise && maybePromise.then) {
-							maybePromise.then(() => deferred.resolve(win)).catch(e => deferred.reject(e));
-							return;
-						}
-					}
-					catch (e) {
-						Zotero.logError(e);
-						win.close();
-						deferred.reject(e);
+		
+		if (ev.target.location.href != uri) {
+			Zotero.debug(`Ignoring window ${uri} in waitForWindow()`);
+			return;
+		}
+		
+		Services.ww.unregisterNotification(winobserver);
+		var win = ev.target.docShell
+			.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+			.getInterface(Components.interfaces.nsIDOMWindow);
+		// Give window code time to run on load
+		 win.setTimeout(function () {
+			if (callback) {
+				try {
+					// If callback returns a promise, wait for it
+					let maybePromise = callback(win);
+					if (maybePromise && maybePromise.then) {
+						maybePromise.then(() => deferred.resolve(win)).catch(e => deferred.reject(e));
 						return;
 					}
 				}
-				deferred.resolve(win);
-			});
-		}
-		else {
-			Zotero.debug(`Ignoring window ${uri} in waitForWindow()`);
-		}
+				catch (e) {
+					Zotero.logError(e);
+					win.close();
+					deferred.reject(e);
+					return;
+				}
+			}
+			deferred.resolve(win);
+		});
 	};
 	var winobserver = {"observe":function(subject, topic, data) {
 		if(topic != "domwindowopened") return;
@@ -174,16 +192,29 @@ var waitForItemsLoad = Zotero.Promise.coroutine(function* (win, collectionRowToS
 	var zp = win.ZoteroPane;
 	var cv = zp.collectionsView;
 	
-	var deferred = Zotero.Promise.defer();
-	cv.addEventListener('load', () => deferred.resolve());
-	yield deferred.promise;
+	yield cv.waitForLoad();
 	if (collectionRowToSelect !== undefined) {
 		yield cv.selectWait(collectionRowToSelect);
 	}
-	deferred = Zotero.Promise.defer();
-	zp.itemsView.addEventListener('load', () => deferred.resolve());
-	return deferred.promise;
+	yield zp.itemsView.waitForLoad();
 });
+
+var waitForTagSelector = function (win) {
+	var zp = win.ZoteroPane;
+	var deferred = Zotero.Promise.defer();
+	if (zp.tagSelectorShown()) {
+		var tagSelector = win.document.getElementById('zotero-tag-selector');
+		var onRefresh = () => {
+			tagSelector.removeEventListener('refresh', onRefresh);
+			deferred.resolve();
+		};
+		tagSelector.addEventListener('refresh', onRefresh);
+	}
+	else {
+		deferred.resolve();
+	}
+	return deferred.promise;
+};
 
 /**
  * Waits for a single item event. Returns a promise for the item ID(s).
@@ -215,7 +246,6 @@ function waitForNotifierEvent(event, type) {
  * Looks for windows with a specific URL.
  */
 function getWindows(uri) {
-	Components.utils.import("resource://gre/modules/Services.jsm");
 	var enumerator = Services.wm.getEnumerator(null);
 	var wins = [];
 	while(enumerator.hasMoreElements()) {
@@ -324,7 +354,7 @@ var createFeed = Zotero.Promise.coroutine(function* (props = {}) {
 	feed.refreshInterval = props.refreshInterval || 12;
 	feed.cleanupReadAfter = props.cleanupReadAfter || 2;
 	feed.cleanupUnreadAfter = props.cleanupUnreadAfter || 30;
-	yield feed.saveTx();
+	yield feed.saveTx(props.saveOptions);
 	return feed;
 });
 
@@ -363,9 +393,11 @@ function createUnsavedDataObject(objectType, params = {}) {
 	var itemType;
 	if (objectType == 'item' || objectType == 'feedItem') {
 		itemType = params.itemType || 'book';
-		allowedParams.push('dateAdded', 'dateModified');
+		allowedParams.push('deleted', 'dateAdded', 'dateModified');
 	}
-	
+	if (objectType == 'item') {
+		allowedParams.push('inPublications');
+	}
 	if (objectType == 'feedItem') {
 		params.guid = params.guid || Zotero.randomString();
 		allowedParams.push('guid');
@@ -384,6 +416,12 @@ function createUnsavedDataObject(objectType, params = {}) {
 		}
 		if (params.collections !== undefined) {
 			obj.setCollections(params.collections);
+		}
+		if (params.tags !== undefined) {
+			obj.setTags(params.tags);
+		}
+		if (params.note !== undefined) {
+			obj.setNote(params.note);
 		}
 		break;
 	
@@ -461,7 +499,6 @@ function uninstallPDFTools() {
  * (i.e., test/tests/data)
  */
 function getTestDataDirectory() {
-	Components.utils.import("resource://gre/modules/Services.jsm");
 	var resource = Services.io.getProtocolHandler("resource").
 	               QueryInterface(Components.interfaces.nsIResProtocolHandler),
 	    resURI = Services.io.newURI("resource://zotero-unit-tests/data", null, null);
@@ -811,6 +848,16 @@ function importFileAttachment(filename, options = {}) {
 	};
 	Object.assign(importOptions, options);
 	return Zotero.Attachments.importFromFile(importOptions);
+}
+
+
+function importTextAttachment() {
+	return importFileAttachment('test.txt', { contentType: 'text/plain', charset: 'utf-8' });
+}
+
+
+function importHTMLAttachment() {
+	return importFileAttachment('test.html', { contentType: 'text/html', charset: 'utf-8' });
 }
 
 

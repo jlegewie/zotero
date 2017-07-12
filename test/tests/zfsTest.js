@@ -275,6 +275,11 @@ describe("Zotero.Sync.Storage.Mode.ZFS", function () {
 			var suffix1 = Zotero.Utilities.randomString();
 			var uploadKey1 = Zotero.Utilities.randomString(32, 'abcdef0123456789');
 			
+			let file1Blob = File.createFromFileName ? File.createFromFileName(file1.path) : new File(file1);
+			if (file1Blob.then) {
+				file1Blob = yield file1Blob;
+			}
+			
 			// HTML file with auxiliary image
 			var file2 = OS.Path.join(getTestDataDirectory().path, 'snapshot', 'index.html');
 			var parentItem = yield createDataObject('item');
@@ -392,7 +397,16 @@ describe("Zotero.Sync.Storage.Mode.ZFS", function () {
 				// Upload single file to S3
 				else if (req.method == "POST" && req.url == baseURL + "pretend-s3/1") {
 					assert.equal(req.requestHeaders["Content-Type"], contentType1 + fixSinonBug);
-					assert.equal(req.requestBody.size, (new Blob([prefix1, new File(file1), suffix1]).size));
+					assert.equal(
+						req.requestBody.size,
+						(new Blob(
+							[
+								prefix1,
+								file1Blob,
+								suffix1
+							]
+						).size)
+					);
 					req.respond(201, {}, "");
 				}
 				// Upload multi-file ZIP to S3
