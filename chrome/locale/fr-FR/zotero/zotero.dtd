@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Actualiser">
 <!ENTITY zotero.general.saveAs "Enregistrer sous…">
 <!ENTITY zotero.general.advancedOptions.label "Options avancées">
+<!ENTITY zotero.general.tools "Outils">
 <!ENTITY zotero.general.more "Plus">
 <!ENTITY zotero.general.loading "Chargement…">
 
 <!ENTITY zotero.errorReport.title "Rapport d'erreur Zotero">
-<!ENTITY zotero.errorReport.unrelatedMessages "Il peut y avoir des messages sans lien avec Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Veuillez patienter pendant la transmission du rapport d'erreur.">
 <!ENTITY zotero.errorReport.submitted "Le rapport d'erreur a été transmis.">
 <!ENTITY zotero.errorReport.reportID "ID du rapport :">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Afficher en ligne">
 <!ENTITY zotero.item.copyAsURL "Copier comme un lien">
 <!ENTITY zotero.item.deletePermanently "Supprimer définitivement…">
+
+<!ENTITY zotero.item.tags.removeAll "Supprimer tous les marqueurs…">
 
 <!ENTITY zotero.toolbar.newNote "Nouvelle note">
 <!ENTITY zotero.toolbar.note.standalone "Nouvelle note indépendante">
@@ -272,7 +274,7 @@
 <!ENTITY zotero.feedSettings.refresh.label2 "heure(s)">
 <!ENTITY zotero.feedSettings.cleanupUnreadAfter.label1 "Retirer les documents non lus après">
 <!ENTITY zotero.feedSettings.cleanupUnreadAfter.label2 "jour(s)">
-<!ENTITY zotero.feedSettings.cleanupReadAfter.label1 "Retirer les documents lus">
+<!ENTITY zotero.feedSettings.cleanupReadAfter.label1 "Retirer les documents lus après">
 <!ENTITY zotero.feedSettings.cleanupReadAfter.label2 "jour(s)">
 
 

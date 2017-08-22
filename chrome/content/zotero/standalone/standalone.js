@@ -33,6 +33,11 @@ const ZoteroStandalone = new function() {
 	 * Run when standalone window first opens
 	 */
 	this.onLoad = function() {
+		// Fix window without menubar/titlebar when Zotero is closed in full-screen mode in OS X 10.11+
+		if (Zotero.isMac && window.document.documentElement.getAttribute('sizemode') == 'fullscreen') {
+			window.document.documentElement.setAttribute('sizemode', 'normal');
+		}
+		
 		Zotero.Promise.try(function () {
 			if(!Zotero) {
 				throw true;
@@ -46,6 +51,13 @@ const ZoteroStandalone = new function() {
 			if (Zotero.Prefs.get('devtools.errorconsole.enabled', true)) {
 				document.getElementById('menu_errorConsole').hidden = false;
 			}
+			
+			document.getElementById('key_copyCitation')
+				.setAttribute('key', Zotero.Keys.getKeyForCommand('copySelectedItemCitationsToClipboard'));
+			document.getElementById('key_copyBibliography')
+				.setAttribute('key', Zotero.Keys.getKeyForCommand('copySelectedItemsToClipboard'));
+			
+			ZoteroStandalone.DebugOutput.init();
 			
 			Zotero.hideZoteroPaneOverlays();
 			ZoteroPane.init();
@@ -125,6 +137,31 @@ const ZoteroStandalone = new function() {
 		}
 	}
 	
+	
+	this.updateQuickCopyOptions = function () {
+		var format = Zotero.QuickCopy.getFormatFromURL(Zotero.QuickCopy.lastActiveURL);
+		format = Zotero.QuickCopy.unserializeSetting(format);
+		
+		var copyCitation = document.getElementById('menu_copyCitation');
+		var copyBibliography = document.getElementById('menu_copyBibliography');
+		var copyExport = document.getElementById('menu_copyExport');
+		
+		copyCitation.hidden = format.mode != 'bibliography';
+		copyBibliography.hidden = format.mode != 'bibliography';
+		copyExport.hidden = format.mode != 'export';
+		if (format.mode == 'export') {
+			try {
+				let obj = Zotero.Translators.get(format.id);
+				copyExport.label = Zotero.getString('quickCopy.copyAs', obj.label);
+			}
+			catch (e) {
+				Zotero.logError(e);
+				copyExport.hidden = true;
+			}
+		}
+	};
+	
+	
 	this.updateAddonsPane = function (doc) {
 		// Hide unsigned add-on verification warnings
 		//
@@ -156,6 +193,8 @@ const ZoteroStandalone = new function() {
 	 * Handles help menu requests
 	 */
 	this.openHelp = function(type) {
+		Components.utils.import("resource://zotero/config.js");
+		
 		switch (type) {
 		case "troubleshooting":
 			ZoteroPane.loadURI(ZOTERO_CONFIG.TROUBLESHOOTING_URL);
@@ -186,9 +225,207 @@ const ZoteroStandalone = new function() {
 	 */
 	this.onUnload = function() {
 		ZoteroPane.destroy();
-		goQuitApplication();
 	}
 }
+
+
+ZoteroStandalone.DebugOutput = {
+	_timer: null,
+	
+	init: function () {
+		var storing = Zotero.Debug.storing;
+		this._showMenu();
+		this.update();
+	},
+	
+	
+	toggleStore: function () {
+		Zotero.Debug.setStore(!Zotero.Debug.storing);
+	},
+	
+	
+	update: function () {
+		var enabled = Zotero.Debug.storing;
+		var lines = Zotero.Debug.count();
+		var empty = lines == 0;
+		
+		// Show "Submit" when enabled, but leave disabled until there's output
+		var menuitem = document.getElementById('debug-output-submit');
+		menuitem.hidden = !enabled && empty;
+		menuitem.disabled = empty;
+		
+		// Toggle between "Enable" and "Disable"
+		menuitem = document.getElementById('debug-output-enable-disable');
+		menuitem.label = Zotero.getString('general.' + (enabled ? 'disable' : 'enable'));
+		
+		// Update line count
+		var str = Zotero.getString('zotero.debugOutputLogging.linesLogged', lines, lines);
+		document.getElementById('debug-output-status').label = str;
+		
+		// Enable "Clear" when there's output
+		document.getElementById('debug-output-clear').disabled = empty;
+	},
+	
+	
+	submit: function () {
+		// 'Zotero' isn't defined yet when this function is created, so do it inline
+		return Zotero.Promise.coroutine(function* () {
+			Components.utils.import("resource://zotero/config.js");
+			
+			var url = ZOTERO_CONFIG.REPOSITORY_URL + "report?debug=1";
+			var output = yield Zotero.Debug.get(
+				Zotero.Prefs.get('debug.store.submitSize'),
+				Zotero.Prefs.get('debug.store.submitLineLength')
+			);
+			Zotero.Debug.setStore(false);
+			
+			var ps = Services.prompt;
+			try {
+				var xmlhttp = yield Zotero.HTTP.request(
+					"POST",
+					url,
+					{
+						compressBody: true,
+						body: output,
+						logBodyLength: 30,
+						timeout: 15000,
+						requestObserver: function (req) {
+							// Don't fail during tests, with fake XHR
+							if (!req.channel) {
+								return;
+							}
+							req.channel.notificationCallbacks = {
+								onProgress: function (request, context, progress, progressMax) {},
+								
+								// nsIInterfaceRequestor
+								getInterface: function (iid) {
+									try {
+										return this.QueryInterface(iid);
+									}
+									catch (e) {
+										throw Components.results.NS_NOINTERFACE;
+									}
+								},
+								
+								QueryInterface: function(iid) {
+									if (iid.equals(Components.interfaces.nsISupports) ||
+											iid.equals(Components.interfaces.nsIInterfaceRequestor) ||
+											iid.equals(Components.interfaces.nsIProgressEventSink)) {
+										return this;
+									}
+									throw Components.results.NS_NOINTERFACE;
+								},
+				
+							}
+						}
+					}
+				);
+			}
+			catch (e) {
+				Zotero.logError(e);
+				let title = Zotero.getString('general.error');
+				let msg;
+				if (e instanceof Zotero.HTTP.UnexpectedStatusException) {
+					msg = Zotero.getString('general.invalidResponseServer');
+				}
+				else if (e instanceof Zotero.HTTP.BrowserOfflineException) {
+					msg = Zotero.getString('general.browserIsOffline', Zotero.appName);
+				}
+				else {
+					msg = Zotero.getString('zotero.debugOutputLogging.dialog.error');
+				}
+				ps.alert(null, title, msg);
+				return false;
+			}
+			
+			Zotero.debug(xmlhttp.responseText);
+			
+			var reported = xmlhttp.responseXML.getElementsByTagName('reported');
+			if (reported.length != 1) {
+				ps.alert(
+					null,
+					Zotero.getString('general.error'),
+					Zotero.getString('general.serverError')
+				);
+				return false;
+			}
+			
+			var reportID = reported[0].getAttribute('reportID');
+			
+			var buttonFlags = ps.BUTTON_POS_0 * ps.BUTTON_TITLE_IS_STRING
+				+ ps.BUTTON_POS_1 * ps.BUTTON_TITLE_CANCEL;
+			var index = ps.confirmEx(
+				null,
+				Zotero.getString('zotero.debugOutputLogging.dialog.title'),
+				Zotero.getString('zotero.debugOutputLogging.dialog.sent', [ZOTERO_CONFIG.DOMAIN_NAME, reportID]),
+				buttonFlags,
+				Zotero.getString('general.copyToClipboard'),
+				null, null, null, {}
+			);
+			if (index == 0) {
+				const helper = Components.classes["@mozilla.org/widget/clipboardhelper;1"]
+					.getService(Components.interfaces.nsIClipboardHelper);
+				helper.copyString("D" + reportID);
+			}
+			
+			Zotero.Debug.clear();
+			return true;
+		}.bind(this))();
+	},
+	
+	
+	view: function () {
+		Zotero.openInViewer("chrome://zotero/content/debugViewer.html", function (doc) {
+			var submitted = false;
+			doc.querySelector('#submit-button').addEventListener('click', function (event) {
+				submitted = true;
+			});
+			doc.querySelector('#clear-button').addEventListener('click', function (event) {
+				Zotero.Debug.clear();
+			});
+			// If output has been submitted, disable logging when window is closed
+			doc.defaultView.addEventListener('unload', function (event) {
+				if (submitted) {
+					Zotero.Debug.setStore(false);
+					Zotero.Debug.clear();
+				}
+			});
+		});
+	},
+	
+	
+	clear: function () {
+		Zotero.Debug.clear();
+	},
+	
+	
+	restartEnabled: function () {
+		var ps = Services.prompt;
+		var buttonFlags = ps.BUTTON_POS_0 * ps.BUTTON_TITLE_IS_STRING
+				+ ps.BUTTON_POS_1 * ps.BUTTON_TITLE_CANCEL
+				+ ps.BUTTON_POS_2 * ps.BUTTON_TITLE_IS_STRING;
+		var index = ps.confirmEx(
+			null,
+			Zotero.getString('zotero.debugOutputLogging'),
+			Zotero.getString('zotero.debugOutputLogging.enabledAfterRestart', [Zotero.clientName]),
+			buttonFlags,
+			Zotero.getString('general.restartNow'),
+			null, Zotero.getString('general.restartLater'), null, {}
+		);
+		if (index != 1) {
+			Zotero.Prefs.set('debug.store', true);
+		}
+		if (index == 0) {
+			Zotero.Utilities.Internal.quit(true);
+		}
+	},
+	
+	
+	_showMenu: function () {
+		document.getElementById('debug-output-menu').hidden = false;
+	}
+};
+
 
 /** Taken from browser.js **/
 function toJavaScriptConsole() {

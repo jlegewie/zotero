@@ -96,6 +96,7 @@ const xpcomFilesLocal = [
 	'id',
 	'integration',
 	'itemTreeView',
+	'locale',
 	'locateManager',
 	'mime',
 	'notifier',
@@ -297,7 +298,7 @@ function makeZoteroContext(isConnector) {
 	// Load xpcomFiles for specific mode
 	for (let xpcomFile of (isConnector ? xpcomFilesConnector : xpcomFilesLocal)) {
 		try {
-			subscriptLoader.loadSubScript("chrome://zotero/content/xpcom/" + xpcomFile + ".js", zContext);
+			subscriptLoader.loadSubScript("chrome://zotero/content/xpcom/" + xpcomFile + ".js", zContext, "UTF-8");
 		}
 		catch (e) {
 			dump("Error loading " + xpcomFile + ".js\n\n");
@@ -539,15 +540,19 @@ ZoteroCommandLineHandler.prototype = {
 			if (param) {
 				var uri = cmdLine.resolveURI(param);
 				if(uri.schemeIs("zotero")) {
-					// Check for existing window and focus it
-					var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-						.getService(Components.interfaces.nsIWindowMediator);
-					var win = wm.getMostRecentWindow("navigator:browser");
-					if(win) {
-						win.focus();
-						Components.classes["@mozilla.org/network/protocol;1?name=zotero"]
-							.createInstance(Components.interfaces.nsIProtocolHandler).newChannel(uri);
-					}
+					addInitCallback(function (Zotero) {
+						Zotero.uiReadyPromise
+						.then(function () {
+							// Check for existing window and focus it
+							var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+								.getService(Components.interfaces.nsIWindowMediator);
+							var win = wm.getMostRecentWindow("navigator:browser");
+							if (win) {
+								win.focus();
+								win.ZoteroPane.loadURI(uri.spec)
+							}
+						});
+					});
 				}
 				// See below
 				else if (uri.schemeIs("file")) {

@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Yenile">
 <!ENTITY zotero.general.saveAs "Farklı Kaydet...">
 <!ENTITY zotero.general.advancedOptions.label "Gelişmiş Seçenekler">
+<!ENTITY zotero.general.tools "Araçlar">
 <!ENTITY zotero.general.more "Daha Başka">
 <!ENTITY zotero.general.loading "Yükleniyor...">
 
 <!ENTITY zotero.errorReport.title "Zotero Hata Raporu">
-<!ENTITY zotero.errorReport.unrelatedMessages "Bu, Zotero ile ilgili olmayan mesajlar içerebilir.">
 <!ENTITY zotero.errorReport.submissionInProgress "Lütfen hata raporu gönderilene kadar bekleyiniz.">
 <!ENTITY zotero.errorReport.submitted "Hata raporu gönderilmiştir.">
 <!ENTITY zotero.errorReport.reportID "Rapor Kimlik Numarası:">
@@ -143,6 +143,8 @@
 <!ENTITY zotero.item.copyAsURL "URL'i Kopyala">
 <!ENTITY zotero.item.deletePermanently "Kalıcı Olarak Sil...">
 
+<!ENTITY zotero.item.tags.removeAll "Tüm Etiketleri Kaldır...">
+
 <!ENTITY zotero.toolbar.newNote "Yeni Not">
 <!ENTITY zotero.toolbar.note.standalone "Yeni Bağımsız Not">
 <!ENTITY zotero.toolbar.note.child "Alt Not Ekle">
@@ -154,7 +156,7 @@
 
 <!ENTITY zotero.tagSelector.noTagsToDisplay "Gösterilecek etiket yok">
 <!ENTITY zotero.tagSelector.loadingTags "Etiketleri yüklüyor...">
-<!ENTITY zotero.tagSelector.showAutomatic "Otomatik göster">
+<!ENTITY zotero.tagSelector.showAutomatic "Otomatik Etiketleri Göster">
 <!ENTITY zotero.tagSelector.displayAllInLibrary "Bu Kitaplık İçindeki Tüm Etiketleri Göster">
 <!ENTITY zotero.tagSelector.deleteAutomaticInLibrary "Bu Kitaplık İçindeki Otomatik Etiketleri Sil...">
 <!ENTITY zotero.tagSelector.clearAll "Hiçbirini Seçme">

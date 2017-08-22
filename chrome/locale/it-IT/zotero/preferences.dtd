@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Se l&apos;opzione è disattivata, Zotero includerà gli URL soltanto nelle citazioni degli articoli di giornale, rivista e quotidiano che non contengono un intervallo di pagine specificato.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Copia veloce">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Formato di output predefinito">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Copia in formato HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Nota: la formattazione RTF verrà persa su Mac OS X">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Impostazioni specifiche per sito:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Dominio o percorso">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(per es. wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Formato di output">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Lingua">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Disabilita la copia veloce quando si trascinano più di">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Usa la classica finestra &quot;Inserisci citazione&quot;">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Gestore di stili">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Titolo">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "File e cartelle">
 <!ENTITY zotero.preferences.advanced.keys "Shortcuts">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Trova">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Gestore dei motori di ricerca di articoli">
 <!ENTITY zotero.preferences.locate.description "Descrizione">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Registrazione dell'output di debug">
-<!ENTITY zotero.preferences.debugOutputLogging.message "L'output di debug può aiutare gli sviluppatori di Zotero a diagnosticare problemi nel software. La registrazione del debug causa un rallentamento di Zotero, quindi in generale deve rimanere disattivata a meno che uno sviluppatore di Zotero non richieda l'output di debug.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "righe registrate">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Attiva dopo il riavvio">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Visualizza output">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Cancella l'output">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Invia al server Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "Apri about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Open Style Editor">
-<!ENTITY zotero.preferences.openCSLPreview "Apri Stile Precedente">
-<!ENTITY zotero.preferences.openAboutMemory "Apri about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

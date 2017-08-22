@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Cập nhật">
 <!ENTITY zotero.general.saveAs "Lưu là...">
 <!ENTITY zotero.general.advancedOptions.label "Các tùy chỉnh nâng cao">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "More">
 <!ENTITY zotero.general.loading "Đang nạp...">
 
 <!ENTITY zotero.errorReport.title "Báo cáo lỗi Zotero">
-<!ENTITY zotero.errorReport.unrelatedMessages "Có thể gồm các thông báo không liên quan tới Zotero">
 <!ENTITY zotero.errorReport.submissionInProgress "Xin vui lòng chờ trong khi báo cáo lỗi được gửi đi.">
 <!ENTITY zotero.errorReport.submitted "Báo cáo lỗi đã được gửi đi">
 <!ENTITY zotero.errorReport.reportID "ID của Báo cáo:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Xem trực tuyến">
 <!ENTITY zotero.item.copyAsURL "Sao chép thành URL">
 <!ENTITY zotero.item.deletePermanently "Xóa hoàn toàn...">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Ghi chú mới">
 <!ENTITY zotero.toolbar.note.standalone "Ghi chép Độc lập mới">

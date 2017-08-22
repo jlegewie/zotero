@@ -23,9 +23,9 @@
 <!ENTITY closeCmd.label "Κλείσιμο">
 <!ENTITY closeCmd.key "W">
 <!ENTITY closeCmd.accesskey "C">
-<!ENTITY importCmd.label "Import…">
+<!ENTITY importCmd.label "Εισαγωγή...">
 <!ENTITY importCmd.key "I">
-<!ENTITY importFromClipboardCmd.label "Import from Clipboard">
+<!ENTITY importFromClipboardCmd.label "Εισαγωγή από το Πρόχειρο">
 <!ENTITY quitApplicationCmdWin.label "Έξοδος">
 <!ENTITY quitApplicationCmdWin.accesskey "x">
 <!ENTITY quitApplicationCmd.label "Κλείσιμο">
@@ -69,10 +69,18 @@
 <!ENTITY productHelp.accesskey "D">
 <!ENTITY helpTroubleshootingInfo.label "Πληροφορίες για αντιμετώπιση προβλημάτων">
 <!ENTITY helpTroubleshootingInfo.accesskey "Τ">
-<!ENTITY helpFeedbackPage.label "Επικοινωνία...">
-<!ENTITY helpFeedbackPage.accesskey "S">
+<!ENTITY helpFeedbackPage.label "Discussion Forums">
+<!ENTITY helpFeedbackPage.accesskey "F">
 
-<!ENTITY helpReportErrors.label "Αναφέρετε Σφάλματα στο Zotero...">
+<!ENTITY helpReportErrors.label "Report Errors…">
 <!ENTITY helpReportErrors.accesskey "R">
+
+<!ENTITY debugOutputLogging.label "Debug Output Logging">
+<!ENTITY debugOutputLogging.accesskey "L">
+<!ENTITY debugOutputLogging.submit "Submit Output">
+<!ENTITY debugOutputLogging.view "View Output">
+<!ENTITY debugOutputLogging.clear "Clear Output">
+<!ENTITY debugOutputLogging.restartWithLoggingEnabled "Restart with Logging Enabled…">
+
 <!ENTITY helpCheckForUpdates.label "Έλεγχος για ενημερώσεις...">
 <!ENTITY helpCheckForUpdates.accesskey "U">

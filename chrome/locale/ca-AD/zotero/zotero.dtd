@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Refresh">
 <!ENTITY zotero.general.saveAs "Save As…">
 <!ENTITY zotero.general.advancedOptions.label "Advanced Options">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "More">
 <!ENTITY zotero.general.loading "Loading…">
 
 <!ENTITY zotero.errorReport.title "Informe d'error de Zotero">
-<!ENTITY zotero.errorReport.unrelatedMessages "Això pot incloure missatges no relacionats amb el Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Espereu mentre s&apos;envia l&apos;informe d&apos;error.">
 <!ENTITY zotero.errorReport.submitted "L&apos;informe d&apos;error ha estat enviat correctament.">
 <!ENTITY zotero.errorReport.reportID "Número de referència de l&apos;informe:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "View Online">
 <!ENTITY zotero.item.copyAsURL "Copy as URL">
 <!ENTITY zotero.item.deletePermanently "Delete Permanently…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Nota nova">
 <!ENTITY zotero.toolbar.note.standalone "Nova nota independent">

@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Khi không cho phép tùy chọn này, Zotero sẽ chỉ gộp các URL khi trích dẫn các bài journal, magazine và newspaper không có vùng trang xác định">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Sao chép nhanh">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Định dạng mặc định của dữ liệu đầu ra:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Copy theo dạng HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Chú ý: Định dạng rich-text sẽ bị mất khi dùng trên Mac OS X.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Những thiết lập đặc thù cho từng Website:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Tên miền/Đường dẫn">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(vd: wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Định dạng dữ liệu đầu ra">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Ngôn ngữ">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Tắt copy nhanh khi kéo nhiều hơn">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Lấy plug-in cho trình soạn thảo...">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Dùng màn hình Thêm trích dẫn kiểu cũ">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Bộ quản lý kiểu trích dẫn">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Tiêu đề">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Các tập tin và thư mục">
 <!ENTITY zotero.preferences.advanced.keys "Các lối tắt">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Tìm kiếm">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Bộ quản lý cơ chế tìm bài viết">
 <!ENTITY zotero.preferences.locate.description "Mô tả">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Thiết lập lại bộ chuyển đổi">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Thiết lập lại style">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Xem log cho gỡ rối">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Thông tin gỡ rối có thể giúp các nhà phát triển Zotero chẩn đoán lỗi của Zotero. Ghi nhận thông tin gỡ rối làm chậm Zotero nên thông thường bạn nên tắt nó trừ khi một nhà phát triển Zotero yêu cầu Thông tin gỡ rối.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "dòng được ghi nhận">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Cho phép sau khi khởi động lại">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Xem thông tin gỡ rối">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Xóa thông tin gỡ rối">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Gửi tới máy chủ Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "Mở about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Mở Bộ soạn thảo kiểu trích dẫn">
-<!ENTITY zotero.preferences.openCSLPreview "Mở trình xem kiểu trích dẫn">
-<!ENTITY zotero.preferences.openAboutMemory "Mở about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

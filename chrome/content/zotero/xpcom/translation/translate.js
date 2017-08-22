@@ -1276,7 +1276,7 @@ Zotero.Translate.Base.prototype = {
 				if(!translators.length) {
 					me.complete(false, "Could not find an appropriate translator");
 				} else {
-					me.setTranslator(translators[0]);
+					me.setTranslator(translators);
 					deferred.resolve(Zotero.Translate.Base.prototype.translate.call(me, options));
 				}
 			});
@@ -1956,7 +1956,14 @@ Zotero.Translate.Web.prototype.Sandbox = Zotero.Translate.Sandbox._inheritFromBa
  */
 Zotero.Translate.Web.prototype.setDocument = function(doc) {
 	this.document = doc;
-	this.rootDocument = doc.defaultView.top.document || doc;
+	try {
+		this.rootDocument = doc.defaultView.top.document;
+	} catch (e) {
+		// Cross-origin frames won't be able to access top.document and will throw an error
+	}
+	if (!this.rootDocument) {
+		this.rootDocument = doc;
+	}
 	this.setLocation(doc.location.href, this.rootDocument.location.href);
 }
 
@@ -2568,18 +2575,12 @@ Zotero.Translate.Search.prototype.getTranslators = function() {
  * @param {Zotero.Translator|string} Translator object or ID
  */
 Zotero.Translate.Search.prototype.setTranslator = function(translator) {
-	if(typeof translator == "object" && !translator.translatorID) {
-		// we have an array of translators
-		
-		// accept a list of objects
-		this.translator = [];
-		for(var i=0, n=translator.length; i<n; i++) {
-			this.translator.push(translator[i]);
-		}
+	// Accept an array of translators
+	if (Array.isArray(translator)) {
+		this.translator = translator;
 		return true;
-	} else {
-		return Zotero.Translate.Base.prototype.setTranslator.apply(this, [translator]);
 	}
+	return Zotero.Translate.Base.prototype.setTranslator.apply(this, [translator]);
 }
 
 /**

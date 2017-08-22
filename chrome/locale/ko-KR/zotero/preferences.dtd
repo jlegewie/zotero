@@ -84,7 +84,7 @@
 <!ENTITY zotero.preferences.sync.reset.restoreToServer "Zotero Server로 복원">
 <!ENTITY zotero.preferences.sync.reset.restoreToServer.desc "모든 서버 자료를 지우고 지역 Zotero 자료로 덮어 씁니다.">
 <!ENTITY zotero.preferences.sync.reset.resetFileSyncHistory "파일 동기화 기록 재설정">
-<!ENTITY zotero.preferences.sync.reset.resetFileSyncHistory.desc "Compare all attachment files with storage service">
+<!ENTITY zotero.preferences.sync.reset.resetFileSyncHistory.desc "모든 첨부 파일을 저장소 서비스의 파일과 비교">
 <!ENTITY zotero.preferences.sync.reset "재설정">
 <!ENTITY zotero.preferences.sync.reset.button "재설정...">
 
@@ -109,15 +109,14 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "이 선택사항을 사용안함으로 할 경우, 기사의 페이지 범위를 지정하고 있지 않는 인용된 잡지 및 신문 기사의 경우에만 Zotero에 URL을 삽입합니다.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "빠른 복사">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "기본 출력 형식:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "기본 형식:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "HTML로 복사">
-<!ENTITY zotero.preferences.quickCopy.macWarning "주: Rich-text 형식은 Mac OS X 에서는 손실됩니다.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "사이트별 설정:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "도메인/경로">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(예. wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "출력 형식">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "형식">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "언어">
-<!ENTITY zotero.preferences.quickCopy.dragLimit "다음 이상 끌을 경우 빠른 복사 동작 안함:">
+<!ENTITY zotero.preferences.quickCopy.dragLimit "다음 항목 이상을 끌어넣을 경우 빠른 복사 동작 안함:">
 
 <!ENTITY zotero.preferences.prefpane.cite "인용">
 <!ENTITY zotero.preferences.cite.styles "스타일">
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "워드 프로세서 플러그인 받기...">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "클래식 인용추가 대화창 사용">
+<!ENTITY zotero.preferences.styleEditor "스타일 편집기">
+<!ENTITY zotero.preferences.stylePreview "스타일 미리보기">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "스타일 매니저">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "제목">
@@ -145,7 +146,7 @@
 <!ENTITY zotero.preferences.keys.copySelectedItemCitationsToClipboard "선택된 항목 인용을 클립보드에 복사">
 <!ENTITY zotero.preferences.keys.copySelectedItemsToClipboard "선택된 항목을 클립보드에 복사">
 <!ENTITY zotero.preferences.keys.importFromClipboard "클립보드에서 불러오기">
-<!ENTITY zotero.preferences.keys.changesTakeEffect "재시작 후에 변경 사항이 ">
+<!ENTITY zotero.preferences.keys.changesTakeEffect "재시작 후 변경 사항 적용">
 
 <!ENTITY zotero.preferences.prefpane.proxies "프록시">
 
@@ -173,6 +174,8 @@
 <!ENTITY zotero.preferences.prefpane.advanced "고급">
 <!ENTITY zotero.preferences.advanced.filesAndFolders "파일 및 폴더">
 <!ENTITY zotero.preferences.advanced.keys "바로가기">
+
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "고급 설정">
 
 <!ENTITY zotero.preferences.prefpane.locate "위치">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Article 검색 엔진 메니저">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "중계기 재설정...">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "스타일 재설정...">
 
-<!ENTITY zotero.preferences.debugOutputLogging "디버그 출력 로그">
-<!ENTITY zotero.preferences.debugOutputLogging.message "디버그 출력은 Zotero 개발자가 문제를 해결하는데 도움을 줍니다. 디버그 로깅은 Zotero의 실행속도를 저하시킵니다. 따라서 Zotero 개발자가 디버그 출력을 요구하지 않는한 사용하지 마십시오.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "줄 기록됨">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "재시작 후 사용">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "출력 보기">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "출력 지우기">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Zotero 서버에 제출">
-
-<!ENTITY zotero.preferences.openAboutConfig "about:config 열기">
-<!ENTITY zotero.preferences.openCSLEdit "스타일 편집기 열기">
-<!ENTITY zotero.preferences.openCSLPreview "스타일 미리보기 열기">
-<!ENTITY zotero.preferences.openAboutMemory "about:memory 열기">
+<!ENTITY zotero.preferences.configEditor "설정 편집기">

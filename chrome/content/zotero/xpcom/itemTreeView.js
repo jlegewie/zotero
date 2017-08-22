@@ -116,7 +116,10 @@ Zotero.ItemTreeView.prototype.setTree = async function (treebox) {
 			return;
 		}
 		
-		await this.refresh(true);
+		// Don't expand to show search matches in My Publications
+		var skipExpandMatchParents = this.collectionTreeRow.isPublications();
+		
+		await this.refresh(skipExpandMatchParents);
 		if (!this._treebox.treeBody) {
 			return;
 		}
@@ -146,14 +149,14 @@ Zotero.ItemTreeView.prototype.setTree = async function (treebox) {
 			
 			// Handle arrow keys specially on multiple selection, since
 			// otherwise the tree just applies it to the last-selected row
-			if (event.keyCode == 39 || event.keyCode == 37) {
+			if (event.keyCode == event.DOM_VK_RIGHT || event.keyCode == event.DOM_VK_LEFT) {
 				if (self._treebox.view.selection.count > 1) {
 					switch (event.keyCode) {
-						case 39:
+						case event.DOM_VK_RIGHT:
 							self.expandSelectedRows();
 							break;
 							
-						case 37:
+						case event.DOM_VK_LEFT:
 							self.collapseSelectedRows();
 							break;
 					}
@@ -593,6 +596,20 @@ Zotero.ItemTreeView.prototype.notify = Zotero.Promise.coroutine(function* (actio
 			this._cellTextCache = {};
 		}
 		
+		// For a refresh on an item in the trash, check if the item still belongs
+		if (type == 'item' && collectionTreeRow.isTrash()) {
+			let rows = [];
+			for (let id of ids) {
+				let row = this.getRowIndexByID(id);
+				if (row === false) continue;
+				let item = Zotero.Items.get(id);
+				if (!item.deleted && !item.numChildren()) {
+					rows.push(row);
+				}
+			}
+			this._removeRows(rows);
+		}
+		
 		return;
 	}
 	
@@ -664,14 +681,7 @@ Zotero.ItemTreeView.prototype.notify = Zotero.Promise.coroutine(function* (actio
 		}
 		
 		if (rows.length > 0) {
-			// Child items might have been added more than once
-			rows = Zotero.Utilities.arrayUnique(rows);
-			rows.sort(function(a,b) { return a-b });
-			
-			for (let i = rows.length - 1; i >= 0; i--) {
-				this._removeRow(rows[i]);
-			}
-			
+			this._removeRows(rows);
 			madeChanges = true;
 		}
 	}
@@ -1073,50 +1083,19 @@ Zotero.ItemTreeView.prototype.getCellText = function (row, column)
 				break;
 			}
 			if (val) {
-				var order = Zotero.Date.getLocaleDateOrder();
-				if (order == 'mdy') {
-					order = 'mdy';
-					var join = '/';
-				}
-				else if (order == 'dmy') {
-					order = 'dmy';
-					var join = '/';
-				}
-				else if (order == 'ymd') {
-					order = 'YMD';
-					var join = '-';
-				}
-				var date = Zotero.Date.sqlToDate(val, true);
-				var parts = [];
-				for (var i=0; i<3; i++) {
-					switch (order[i]) {
-						case 'y':
-							parts.push(date.getFullYear().toString().substr(2));
-							break;
-							
-						case 'Y':
-							parts.push(date.getFullYear());
-							break;
-						
-						case 'm':
-							parts.push((date.getMonth() + 1));
-							break;
-						
-						case 'M':
-							parts.push(Zotero.Utilities.lpad((date.getMonth() + 1).toString(), '0', 2));
-							break;
-						
-						case 'd':
-							parts.push(date.getDate());
-							break;
-						
-						case 'D':
-							parts.push(Zotero.Utilities.lpad(date.getDate().toString(), '0', 2));
-							break;
+				let date = Zotero.Date.sqlToDate(val, true);
+				if (date) {
+					// If no time, interpret as local, not UTC
+					if (Zotero.Date.isSQLDate(val)) {
+						date = Zotero.Date.sqlToDate(val);
+						val = date.toLocaleDateString();
 					}
-					
-					val = parts.join(join);
-					val += ' ' + date.toLocaleTimeString();
+					else {
+						val = date.toLocaleString();
+					}
+				}
+				else {
+					val = '';
 				}
 			}
 	}
@@ -2720,10 +2699,8 @@ Zotero.ItemTreeView.prototype.onDragStart = function (event) {
 		}
 	}
 	
-	// Get Quick Copy format for current URL
-	var url = this._ownerDocument.defaultView.content && this._ownerDocument.defaultView.content.location ?
-				this._ownerDocument.defaultView.content.location.href : null;
-	var format = Zotero.QuickCopy.getFormatFromURL(url);
+	// Get Quick Copy format for current URL (set via /ping from connector)
+	var format = Zotero.QuickCopy.getFormatFromURL(Zotero.QuickCopy.lastActiveURL);
 	
 	Zotero.debug("Dragging with format " + format);
 	

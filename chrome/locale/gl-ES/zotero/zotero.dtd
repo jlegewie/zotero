@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Actualizar">
 <!ENTITY zotero.general.saveAs "Gardar como...">
 <!ENTITY zotero.general.advancedOptions.label "Opcións avanzadas">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "Máis">
 <!ENTITY zotero.general.loading "Cargando...">
 
 <!ENTITY zotero.errorReport.title "Informe de erros de Zotero">
-<!ENTITY zotero.errorReport.unrelatedMessages "Isto pode conter mensaxes que non estean relacionadas con Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Espera mentres que se presenta o informe de erro.">
 <!ENTITY zotero.errorReport.submitted "Presentouse o informe de erro.">
 <!ENTITY zotero.errorReport.reportID "ID do informe:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Ver en liña">
 <!ENTITY zotero.item.copyAsURL "Gardar como URL">
 <!ENTITY zotero.item.deletePermanently "Eliminar ao completo...">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Nota nova">
 <!ENTITY zotero.toolbar.note.standalone "Nova nota independente">

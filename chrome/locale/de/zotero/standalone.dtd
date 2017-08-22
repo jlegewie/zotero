@@ -23,9 +23,9 @@
 <!ENTITY closeCmd.label "Schließen">
 <!ENTITY closeCmd.key "W">
 <!ENTITY closeCmd.accesskey "C">
-<!ENTITY importCmd.label "Import…">
+<!ENTITY importCmd.label "Importieren...">
 <!ENTITY importCmd.key "I">
-<!ENTITY importFromClipboardCmd.label "Import from Clipboard">
+<!ENTITY importFromClipboardCmd.label "Importieren aus Zwischenablage">
 <!ENTITY quitApplicationCmdWin.label "Beenden">
 <!ENTITY quitApplicationCmdWin.accesskey "x">
 <!ENTITY quitApplicationCmd.label "Beenden">
@@ -44,7 +44,7 @@
 
 <!ENTITY toolsMenu.label "Werkzeuge">
 <!ENTITY toolsMenu.accesskey "W">
-<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.label "Browsererweiterungen installieren">
 <!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Add-ons">
 
@@ -69,10 +69,18 @@
 <!ENTITY productHelp.accesskey "S">
 <!ENTITY helpTroubleshootingInfo.label "Problembehebung">
 <!ENTITY helpTroubleshootingInfo.accesskey "P">
-<!ENTITY helpFeedbackPage.label "Feedback senden...">
+<!ENTITY helpFeedbackPage.label "Diskussionsforum">
 <!ENTITY helpFeedbackPage.accesskey "F">
 
-<!ENTITY helpReportErrors.label "Fehlerbericht an Zotero senden">
+<!ENTITY helpReportErrors.label "Fehler melden...">
 <!ENTITY helpReportErrors.accesskey "e">
+
+<!ENTITY debugOutputLogging.label "Logging des Debug-Outputs">
+<!ENTITY debugOutputLogging.accesskey "L">
+<!ENTITY debugOutputLogging.submit "Ausgabe übertragen">
+<!ENTITY debugOutputLogging.view "Ausgabe anzeigen">
+<!ENTITY debugOutputLogging.clear "Ausgabe löschen">
+<!ENTITY debugOutputLogging.restartWithLoggingEnabled "Mit aktiviertem Logging neustarten...">
+
 <!ENTITY helpCheckForUpdates.label "Auf Updates überprüfen">
 <!ENTITY helpCheckForUpdates.accesskey "U">

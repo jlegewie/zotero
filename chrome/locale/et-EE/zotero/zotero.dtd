@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Värskenda">
 <!ENTITY zotero.general.saveAs "Salvestada kui...">
 <!ENTITY zotero.general.advancedOptions.label "Advanced Options">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "More">
 <!ENTITY zotero.general.loading "Loading…">
 
 <!ENTITY zotero.errorReport.title "Zotero vearaport">
-<!ENTITY zotero.errorReport.unrelatedMessages "Vealogi võib sisaldada teateid, mis ei puutu Zoterosse.">
 <!ENTITY zotero.errorReport.submissionInProgress "Palun oodake kuni veateadet saadetakse.">
 <!ENTITY zotero.errorReport.submitted "Teie veateade on saadetud.">
 <!ENTITY zotero.errorReport.reportID "Veateate ID:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Online vaade">
 <!ENTITY zotero.item.copyAsURL "Kopeerida URL kujul">
 <!ENTITY zotero.item.deletePermanently "Delete Permanently…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Uus märkus">
 <!ENTITY zotero.toolbar.note.standalone "Uus sõltumatu märkus">

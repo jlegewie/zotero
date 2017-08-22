@@ -166,7 +166,7 @@ describe("Connector Server", function () {
 		});
 		
 		
-		it("should save to My Library if read-only library is selected", function* () {
+		it("should respond with 500 if read-only library is selected", function* () {
 			var group = yield createGroup({
 				editable: false
 			});
@@ -191,7 +191,6 @@ describe("Connector Server", function () {
 				uri: "http://example.com"
 			};
 			
-			var promise = waitForItemEvent('add');
 			var req = yield Zotero.HTTP.request(
 				'POST',
 				connectorServerPath + "/connector/saveItems",
@@ -199,21 +198,17 @@ describe("Connector Server", function () {
 					headers: {
 						"Content-Type": "application/json"
 					},
-					body: JSON.stringify(body)
+					body: JSON.stringify(body),
+					successCodes: false
 				}
 			);
 			
-			// Check item
-			var ids = yield promise;
-			assert.lengthOf(ids, 1);
-			var item = Zotero.Items.get(ids[0]);
-			assert.equal(Zotero.ItemTypes.getName(item.itemTypeID), 'newspaperArticle');
-			// Item should've been saved to My Library
-			assert.equal(item.libraryID, Zotero.Libraries.userLibraryID);
+			assert.equal(req.status, 500);
+			assert.isFalse(JSON.parse(req.responseText).libraryEditable);
 			
-			// My Library should've been selected
+			// The selection should remain
 			assert.equal(
-				win.ZoteroPane.collectionsView.getSelectedLibraryID(), Zotero.Libraries.userLibraryID
+				win.ZoteroPane.collectionsView.getSelectedLibraryID(), group.libraryID
 			);
 		});
 		
@@ -518,7 +513,11 @@ describe("Connector Server", function () {
 			assert.equal(error.xmlhttp.status, 400);
 		});
 		
-		it('should import resources (BibTeX)', function* () {
+		it('should import resources (BibTeX) into selected collection', function* () {
+			var collection = yield createDataObject('collection');
+			yield waitForItemsLoad(win);
+			
+			var addedItemIDPromise = waitForItemEvent('add');
 			var resource = `@book{test1,
   title={Test1},
   author={Owl},
@@ -535,6 +534,9 @@ describe("Connector Server", function () {
 			);	
 			assert.equal(response.status, 201);
 			assert.equal(JSON.parse(response.responseText)[0].title, 'Test1');
+			
+			let itemId = yield addedItemIDPromise;
+			assert.isTrue(collection.hasItem(itemId[0]));
 		});
 	});
 });

@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Endurnýja">
 <!ENTITY zotero.general.saveAs "Vista sem…">
 <!ENTITY zotero.general.advancedOptions.label "Ítarlegir valkostir">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "Meira">
 <!ENTITY zotero.general.loading "Hleð inn…">
 
 <!ENTITY zotero.errorReport.title "Zotero villutilkynning">
-<!ENTITY zotero.errorReport.unrelatedMessages "Hér gætu einnig verið skilaboð ótengd Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Bíddu aðeins á meðan villuskýrsla er send.">
 <!ENTITY zotero.errorReport.submitted "Villuskýrsla þín hefur verið send.">
 <!ENTITY zotero.errorReport.reportID "Auðkennisnúmer (ID) skýrslu:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Skoða nettengt">
 <!ENTITY zotero.item.copyAsURL "Afrita sem URL-slóð">
 <!ENTITY zotero.item.deletePermanently "Eyða endanlega…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Ný athugasemd">
 <!ENTITY zotero.toolbar.note.standalone "Ný athugasemd í sjálfstæða forritinu">

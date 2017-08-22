@@ -24,8 +24,54 @@
 */
 const CONNECTOR_API_VERSION = 2;
 
-Zotero.Server.Connector = function() {};
-Zotero.Server.Connector._waitingForSelection = {};
+Zotero.Server.Connector = {
+	_waitingForSelection: {},
+	
+	getSaveTarget: function () {
+		var zp = Zotero.getActiveZoteroPane(),
+			library = null,
+			collection = null,
+			editable = true;
+		try {
+			library = Zotero.Libraries.get(zp.getSelectedLibraryID());
+			collection = zp.getSelectedCollection();
+			editable = zp.collectionsView.editable;
+		}
+		catch (e) {
+			let id = Zotero.Prefs.get('lastViewedFolder');
+			if (id) {
+				let type = id[0];
+				Zotero.debug(type);
+				id = parseInt(('' + id).substr(1));
+				
+				switch (type) {
+					case 'L':
+						library = Zotero.Libraries.get(id);
+						editable = library.editable;
+						Zotero.debug("LIB IS " + editable);
+						break;
+					
+					case 'C':
+						collection = Zotero.Collections.get(id);
+						library = collection.library;
+						editable = collection.editable;
+						break;
+					}
+			}
+		}
+		
+		// Default to My Library if present if pane not yet opened
+		// (which should never be the case anymore)
+		if (!library) {
+			let userLibrary = Zotero.Libraries.userLibrary;
+			if (userLibrary) {
+				library = userLibrary;
+			}
+		}
+		
+		return { library, collection, editable };
+	}
+};
 Zotero.Server.Connector.Data = {};
 Zotero.Server.Connector.AttachmentProgressManager = new function() {
 	var attachmentsInProgress = new WeakMap(),
@@ -265,14 +311,8 @@ Zotero.Server.Connector.SavePage.prototype = {
 			return;
 		}
 		
-		// figure out where to save
-		var libraryID = null;
-		var collectionID = null;
-		var zp = Zotero.getActiveZoteroPane();
-		try {
-			var libraryID = zp.getSelectedLibraryID();
-			var collection = zp.getSelectedCollection();
-		} catch(e) {}
+		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
+		var libraryID = library.libraryID;
 		
 		// set handlers for translation
 		var me = this;
@@ -329,35 +369,14 @@ Zotero.Server.Connector.SaveItem.prototype = {
 	init: Zotero.Promise.coroutine(function* (options) {
 		var data = options.data;
 		
-		// figure out where to save
-		var zp = Zotero.getActiveZoteroPane();
-		try {
-			var libraryID = zp.getSelectedLibraryID();
-			var collection = zp.getSelectedCollection();
-		} catch(e) {}
-		
-		// Default to My Library if present if pane not yet opened
-		if (!libraryID) {
-			let userLibrary = Zotero.Libraries.userLibrary;
-			if (userLibrary) {
-				libraryID = userLibrary.id;
-			}
-		}
+		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
+		var libraryID = library.libraryID;
 		
 		// If library isn't editable (or directly editable, in the case of My Publications), switch to
 		// My Library if present and editable, and otherwise fail
-		var library = Zotero.Libraries.get(libraryID);
 		if (!library.editable || library.libraryType == 'publications') {
-			let userLibrary = Zotero.Libraries.userLibrary;
-			if (userLibrary && userLibrary.editable) {
-				yield zp.collectionsView.selectLibrary(userLibrary.id);
-				libraryID = userLibrary.id;
-				collection = null;
-			}
-			else {
-				Zotero.logError("Can't add item to read-only library " + library.name);
-				return 500;
-			}
+			Zotero.logError("Can't add item to read-only library " + library.name);
+			return [500, "application/json", JSON.stringify({libraryEditable: false})];
 		}
 		
 		var cookieSandbox = data.uri
@@ -439,27 +458,19 @@ Zotero.Server.Connector.SaveSnapshot.prototype = {
 		
 		Zotero.Server.Connector.Data[data["url"]] = "<html>"+data["html"]+"</html>";
 		
-		var zp = Zotero.getActiveZoteroPane();
-		try {
-			var libraryID = zp.getSelectedLibraryID();
-			var collection = zp.getSelectedCollection();
-		} catch(e) {}
-		
-		// Default to My Library if present if pane not yet opened
-		if (!libraryID) {
-			let userLibrary = Zotero.Libraries.userLibrary;
-			if (userLibrary) {
-				libraryID = userLibrary.id;
-			}
-		}
+		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
+		var libraryID = library.libraryID;
 		
 		// If library isn't editable (or directly editable, in the case of My Publications), switch to
 		// My Library if present and editable, and otherwise fail
-		var library = Zotero.Libraries.get(libraryID);
 		if (!library.editable || library.libraryType == 'publications') {
 			let userLibrary = Zotero.Libraries.userLibrary;
 			if (userLibrary && userLibrary.editable) {
-				yield zp.collectionsView.selectLibrary(userLibrary.id);
+				let zp = Zotero.getActiveZoteroPane();
+				if (zp) {
+					yield zp.collectionsView.selectLibrary(userLibrary.id);
+				}
+				library = userLibrary;
 				libraryID = userLibrary.id;
 				collection = null;
 			}
@@ -479,10 +490,10 @@ Zotero.Server.Connector.SaveSnapshot.prototype = {
 			filesEditable = true;
 		}
 		
-		var cookieSandbox = data.uri
+		var cookieSandbox = data.url
 			? new Zotero.CookieSandbox(
 				null,
-				data.uri,
+				data.url,
 				data.detailedCookies ? "" : data.cookie || "",
 				options.headers["User-Agent"]
 			)
@@ -632,7 +643,12 @@ Zotero.Server.Connector.Import.prototype = {
 			return 400;
 		}
 		translate.setTranslator(translators[0]);
-		let items = yield translate.translate();
+		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
+		let arg = {};
+		if (editable) {
+			arg = {libraryID: library.libraryID, collections: [collection.id]};
+		}
+		let items = yield translate.translate(arg);
 		return [201, "application/json", JSON.stringify(items)];
 	})
 }
@@ -713,27 +729,16 @@ Zotero.Server.Connector.GetSelectedCollection.prototype = {
 	 * @param {Function} sendResponseCallback function to send HTTP response
 	 */
 	init: function(postData, sendResponseCallback) {
-		var zp = Zotero.getActiveZoteroPane(),
-			libraryID = null,
-			collection = null,
-			editable = true;
-		
-		try {
-			libraryID = zp.getSelectedLibraryID();
-			collection = zp.getSelectedCollection();
-			editable = zp.collectionsView.editable;
-		} catch(e) {}
-		
+		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
 		var response = {
-			editable: editable,
-			libraryID: libraryID
+			libraryID: library.libraryID,
+			libraryName: library.name,
+			libraryEditable: library.editable,
+			editable
 		};
 		
-		if(libraryID) {
-			response.libraryName = Zotero.Libraries.getName(libraryID);
-		} else {
-			response.libraryName = Zotero.getString("pane.collections.library");
-		}
+		response.libraryName = library.name;
+		response.libraryEditable = library.editable;
 		
 		if(collection && collection.id) {
 			response.id = collection.id;
@@ -776,6 +781,31 @@ Zotero.Server.Connector.GetClientHostnames.prototype = {
 	})
 };
 
+/**
+ * Get a list of stored proxies
+ *
+ * Accepts:
+ *		Nothing
+ * Returns:
+ * 		{Array} hostnames
+ */
+Zotero.Server.Connector.Proxies = {};
+Zotero.Server.Connector.Proxies = function() {};
+Zotero.Server.Endpoints["/connector/proxies"] = Zotero.Server.Connector.Proxies;
+Zotero.Server.Connector.Proxies.prototype = {
+	supportedMethods: ["POST"],
+	supportedDataTypes: ["application/json"],
+	permitBookmarklet: false,
+	
+	/**
+	 * Returns a 200 response to say the server is alive
+	 */
+	init: Zotero.Promise.coroutine(function* () {
+		let proxies = Zotero.Proxies.proxies.map((p) => Object.assign(p.toJSON(), {hosts: p.hosts}));
+		return [200, "application/json", JSON.stringify(proxies)];
+	})
+};
+
 
 /**
  * Test connection
@@ -796,13 +826,28 @@ Zotero.Server.Connector.Ping.prototype = {
 	 * Sends 200 and HTML status on GET requests
 	 * @param data {Object} request information defined in connector.js
 	 */
-	init: function(data) {
-		if (data.method == 'GET') {
+	init: function (req) {
+		if (req.method == 'GET') {
 			return [200, "text/html", '<!DOCTYPE html><html><head>' +
 				'<title>Zotero Connector Server is Available</title></head>' +
 				'<body>Zotero Connector Server is Available</body></html>'];
 		} else {
-			return [200, 'text/plain', ''];
+			// Store the active URL so it can be used for site-specific Quick Copy
+			if (req.data.activeURL) {
+				//Zotero.debug("Setting active URL to " + req.data.activeURL);
+				Zotero.QuickCopy.lastActiveURL = req.data.activeURL;
+			}
+			
+			let response = {
+				prefs: {
+					automaticSnapshots: Zotero.Prefs.get('automaticSnapshots')
+				}
+			};
+			if (Zotero.QuickCopy.hasSiteSettings()) {
+				response.prefs.reportActiveURL = true;
+			}
+			
+			return [200, 'application/json', JSON.stringify(response)];
 		}
 	}
 }

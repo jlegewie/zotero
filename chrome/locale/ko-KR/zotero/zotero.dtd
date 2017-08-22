@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "새로고침">
 <!ENTITY zotero.general.saveAs "다른 이름으로 저장...">
 <!ENTITY zotero.general.advancedOptions.label "고급 ">
+<!ENTITY zotero.general.tools "도구">
 <!ENTITY zotero.general.more "더 보기">
 <!ENTITY zotero.general.loading "불러오는 중...">
 
 <!ENTITY zotero.errorReport.title "Zotero 오류 보고">
-<!ENTITY zotero.errorReport.unrelatedMessages "Zotero와 관련 없는 메시지가 포함될 수 있습니다.">
 <!ENTITY zotero.errorReport.submissionInProgress "오류 보고가 제출되는 동안 기다려 주세요.">
 <!ENTITY zotero.errorReport.submitted "오류 보고가 제출되었습니다.">
 <!ENTITY zotero.errorReport.reportID "보고서 ID:">
@@ -143,6 +143,8 @@
 <!ENTITY zotero.item.copyAsURL "URL로 복사">
 <!ENTITY zotero.item.deletePermanently "완전히 삭제...">
 
+<!ENTITY zotero.item.tags.removeAll "모든 태그 제거...">
+
 <!ENTITY zotero.toolbar.newNote "새 노트">
 <!ENTITY zotero.toolbar.note.standalone "새로운 독립 노트">
 <!ENTITY zotero.toolbar.note.child "하위 노트 추가">
@@ -156,7 +158,7 @@
 <!ENTITY zotero.tagSelector.loadingTags "태그 불러오는 중...">
 <!ENTITY zotero.tagSelector.showAutomatic "자동 표시">
 <!ENTITY zotero.tagSelector.displayAllInLibrary "이 라이브러리 내 모든 태그 표시">
-<!ENTITY zotero.tagSelector.deleteAutomaticInLibrary "Delete Automatic Tags in This Library…">
+<!ENTITY zotero.tagSelector.deleteAutomaticInLibrary "이 라이브러리의 자동 태그 삭제...">
 <!ENTITY zotero.tagSelector.clearAll "선택 모두 해제">
 <!ENTITY zotero.tagSelector.assignColor "색상 지정...">
 <!ENTITY zotero.tagSelector.renameTag "태그 이름 변경...">
@@ -238,7 +240,7 @@
 
 <!ENTITY zotero.integration.references.label "참고문헌 목록 내 참조">
 
-<!ENTITY zotero.sync.stop "Stop Sync">
+<!ENTITY zotero.sync.stop "동기화 중지">
 <!ENTITY zotero.sync.error "동기화 오류">
 <!ENTITY zotero.sync.storage.progress "진행률:">
 <!ENTITY zotero.sync.storage.downloads "다운로드:">

@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Обновить">
 <!ENTITY zotero.general.saveAs "Сохранить как">
 <!ENTITY zotero.general.advancedOptions.label "Расширенные настройки">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "More">
 <!ENTITY zotero.general.loading "Загрузка...">
 
 <!ENTITY zotero.errorReport.title "Отчет об ошибке Zotero">
-<!ENTITY zotero.errorReport.unrelatedMessages "This may include messages unrelated to Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Подождите, пока отчет об ошибке будет отправлен.">
 <!ENTITY zotero.errorReport.submitted "Отчет об ошибке отправлен.">
 <!ENTITY zotero.errorReport.reportID "Номер отчета:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "View Online">
 <!ENTITY zotero.item.copyAsURL "Copy as URL">
 <!ENTITY zotero.item.deletePermanently "Delete Permanently…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Новая заметка">
 <!ENTITY zotero.toolbar.note.standalone "Новая отдельная заметка">

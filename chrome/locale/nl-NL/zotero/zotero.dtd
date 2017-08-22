@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Vernieuwen">
 <!ENTITY zotero.general.saveAs "Opslaan als...">
 <!ENTITY zotero.general.advancedOptions.label "Advanced Options">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "More">
 <!ENTITY zotero.general.loading "Loading…">
 
 <!ENTITY zotero.errorReport.title "Zotero-foutrapportage">
-<!ENTITY zotero.errorReport.unrelatedMessages "Dit bevat mogelijk berichten die niet gerelateerd zijn aan Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Even geduld a.u.b. totdat het foutenrapport is verstuurd.">
 <!ENTITY zotero.errorReport.submitted "Het foutenrapport is verstuurd.">
 <!ENTITY zotero.errorReport.reportID "Rapport ID:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "View Online">
 <!ENTITY zotero.item.copyAsURL "Copy as URL">
 <!ENTITY zotero.item.deletePermanently "Delete Permanently…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Nieuwe aantekening">
 <!ENTITY zotero.toolbar.note.standalone "Nieuwe zelfstandige aantekening">

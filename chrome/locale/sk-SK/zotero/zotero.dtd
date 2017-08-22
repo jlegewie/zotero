@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Obnoviť">
 <!ENTITY zotero.general.saveAs "Uložiť ako...">
 <!ENTITY zotero.general.advancedOptions.label "Rozšírené možnosti">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "Viac">
 <!ENTITY zotero.general.loading "Nahrávam...">
 
 <!ENTITY zotero.errorReport.title "Výkaz chýb Zotera">
-<!ENTITY zotero.errorReport.unrelatedMessages "Toto môže obsahovať hlásenia nesúvisiace so Zoterom.">
 <!ENTITY zotero.errorReport.submissionInProgress "Počkajte, prosím, kým sa neodošle hlásenie o chybe.">
 <!ENTITY zotero.errorReport.submitted "Hlásenie o chybe bolo odoslané.">
 <!ENTITY zotero.errorReport.reportID "ID hlásenia:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Zobraziť online">
 <!ENTITY zotero.item.copyAsURL "Kopírovať ako URL">
 <!ENTITY zotero.item.deletePermanently "Odstrániť natrvalo...">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Nová poznámka">
 <!ENTITY zotero.toolbar.note.standalone "Nová samostatná poznámka">

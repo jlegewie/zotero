@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Когда эта опция отключена, при цитировании журнальных и газетных статей Zotero добавляет URL только при отсутвии у статьи диапазона страниц.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Быстрое копирование">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Выходящий формат по умолчанию:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Копировать в виде HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Примечание: форматирование RTF будет утрачено в Mac OS X.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Установки для сайта:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Домен/путь">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(например wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Выходной формат">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Язык">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Выключить быстрое копирование при перетаскивании более">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Использовать стандартный способ Добавления Цитаты">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Диспетчер стилей">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Название">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Файлы и папки">
 <!ENTITY zotero.preferences.advanced.keys "Shortcuts">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Обнаружение">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Диспетчер систем поиска статей">
 <!ENTITY zotero.preferences.locate.description "Описание">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Запись отладочной информации">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Отладочная информация может помочь разработчикам Zotero диагностировать возникшие проблемы. Запись отладочной информации замедлит Zotero, поэтому обычно её следует включать, только если об этом попросит разработчик.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "строк записано">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Включить после перезапуска">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Посмотреть запись">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Очистить запись">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Отправить на сервер Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "Открыть about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Открыть редактор стилей">
-<!ENTITY zotero.preferences.openCSLPreview "Открыть просмотр стилей">
-<!ENTITY zotero.preferences.openAboutMemory "Открыть страницу about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

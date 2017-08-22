@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Kun tämä valinta on pois päältä, Zotero lisää internet-osoitteet tieteellisten lehtien, aikakauslehtien ja sanomalehtien artikkeleihin vain silloin kun niiden sivunumeroja ei ole määritelty.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Pikakopiointi">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Oletusarvoinen kohdemuoto:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Kopioi HTML-muodossa">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Huom.: Rikastetun tekstin muotoilut menetetään Mac OS X:llä.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Sivustokohtaiset asetukset:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Osoite/polku">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(esim. wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Kohdemuoto">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Kieli">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Estä pikakopiointi raahattaessa yli ">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Käytä perinteistä &quot;Lisää sitaatti&quot; -ikkunaa">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Tyylien hallinta">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Nimi">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Tiedostot ja kansiot">
 <!ENTITY zotero.preferences.advanced.keys "Pikanäppäimet">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Paikanna">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Artikkelihakumoottorin hallinta">
 <!ENTITY zotero.preferences.locate.description "Kuvaus">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Virheenjäljityksen päiväkirja">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Virheenjäljityksen päiväkirja voi auttaa Zoteron kehittäjiä diagnosoimaan Zoteron ongelmia. Virheenjäljitys hidastaa Zoteron toimintaa, joten sen tulisi yleisesti ottaen olla poissa päältä ellei Zoteron kehittäjä erikseen pyydää virheenjäljityksen päiväkirjaa.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "riviä päiväkirjassa">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Laita päälle uudelleenkäynnistyksen jälkeen">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Katso päiväkirjaa">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Tyhjennä päiväkirja">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Lähetä Zotero-palvelimelle">
-
-<!ENTITY zotero.preferences.openAboutConfig "Avaa about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Avaa tyylimuokkain">
-<!ENTITY zotero.preferences.openCSLPreview "Avaa tyylin esikatselu">
-<!ENTITY zotero.preferences.openAboutMemory "Avaa about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

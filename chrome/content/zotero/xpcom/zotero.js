@@ -41,7 +41,6 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 	this.debug = debug;
 	this.log = log;
 	this.logError = logError;
-	this.getErrors = getErrors;
 	this.localeJoin = localeJoin;
 	this.setFontSize = setFontSize;
 	this.flattenArguments = flattenArguments;
@@ -224,30 +223,42 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		// Browser
 		Zotero.browser = "g";
 		
-		// Locale
-		var uaPrefs = Services.prefs.getBranch("general.useragent.");
-		try {
-			this.locale = uaPrefs.getComplexValue("locale", Components.interfaces.nsIPrefLocalizedString);
-		} catch (e) {}
-		
-		if(this.locale) {
-			this.locale = this.locale.toString();
-		} else {
-			this.locale = uaPrefs.getCharPref("locale");
+		//
+		// Get settings from language pack (extracted by zotero-build/locale/merge_mozilla_files)
+		//
+		function getIntlProp(name, fallback = null) {
+			try {
+				return intlProps.GetStringFromName(name);
+			}
+			catch (e) {
+				Zotero.logError(`Couldn't load ${name} from intl.properties`);
+				return fallback;
+			}
 		}
-		
-		if (this.locale.length == 2) {
-			this.locale = this.locale + '-' + this.locale.toUpperCase();
+		function setOrClearIntlPref(name, type) {
+			var val = getIntlProp(name);
+			if (val !== null) {
+				if (type == 'boolean') {
+					val = val == 'true';
+				}
+				Zotero.Prefs.set(name, val, 1);
+			}
+			else {
+				Zotero.Prefs.clear(name, 1);
+			}
 		}
-		
-		_localizedStringBundle = Services.strings.createBundle("chrome://zotero/locale/zotero.properties");
-		// Fix logged error in PluralForm.jsm when numForms() is called before get(), as it is in
-		// getString() when a number is based
-		PluralForm.get(1, '1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16')
+		var intlProps = Services.strings.createBundle("chrome://zotero/locale/mozilla/intl.properties");
+		this.locale = getIntlProp('general.useragent.locale', 'en-US');
+		let [get, numForms] = PluralForm.makeGetter(parseInt(getIntlProp('pluralRule', 1)));
+		this.pluralFormGet = get;
+		this.pluralFormNumForms = numForms;
+		setOrClearIntlPref('intl.accept_languages', 'string');
 		
 		// Also load the brand as appName
 		var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
 		this.appName = brandBundle.GetStringFromName("brandShortName");
+		
+		_localizedStringBundle = Services.strings.createBundle("chrome://zotero/locale/zotero.properties");
 		
 		// Set the locale direction to Zotero.dir
 		// DEBUG: is there a better way to get the entity from JS?
@@ -279,34 +290,83 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		}
 		catch (e) {
 			// Zotero dir not found
-			if (e.name == 'NS_ERROR_FILE_NOT_FOUND') {
-				Zotero.startupError = Zotero.getString('dataDir.notFound');
+			if ((e instanceof OS.File.Error && e.becauseNoSuchFile) || e.name == 'NS_ERROR_FILE_NOT_FOUND') {
+				let foundInDefault = false;
+				try {
+					foundInDefault = (yield OS.File.exists(Zotero.DataDirectory.defaultDir))
+						&& (yield OS.File.exists(
+							OS.Path.join(
+								Zotero.DataDirectory.defaultDir,
+								Zotero.DataDirectory.getDatabaseFilename()
+							)
+						));
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+				
+				let previousDir = Zotero.Prefs.get('lastDataDir') || Zotero.Prefs.get('dataDir');
+				Zotero.startupError = foundInDefault
+					? Zotero.getString(
+						'dataDir.notFound.defaultFound',
+						[
+							Zotero.clientName,
+							previousDir,
+							Zotero.DataDirectory.defaultDir
+						]
+					)
+					: Zotero.getString('dataDir.notFound', Zotero.clientName);
 				_startupErrorHandler = function() {
 					var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"].
 							createInstance(Components.interfaces.nsIPromptService);
-					var buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING)
-						+ (ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_IS_STRING)
-						+ (ps.BUTTON_POS_2) * (ps.BUTTON_TITLE_IS_STRING);
+					var buttonFlags = ps.BUTTON_POS_0 * ps.BUTTON_TITLE_IS_STRING
+						+ ps.BUTTON_POS_1 * ps.BUTTON_TITLE_IS_STRING
+						+ ps.BUTTON_POS_2 * ps.BUTTON_TITLE_IS_STRING;
 					// TEMP: lastDataDir can be removed once old persistent descriptors have been
 					// converted, which they are in getZoteroDirectory() in 5.0
-					var previousDir = Zotero.Prefs.get('lastDataDir') || Zotero.Prefs.get('dataDir');
-					var index = ps.confirmEx(null,
-						Zotero.getString('general.error'),
-						Zotero.startupError + '\n\n' +
-						Zotero.getString('dataDir.previousDir') + ' ' + previousDir,
-						buttonFlags,
-						Zotero.getString('general.quit'),
-						Zotero.getString('dataDir.useDefaultLocation'),
-						Zotero.getString('general.locate'),
-						null, {});
-					
-					// Revert to home directory
-					if (index == 1) {
-						Zotero.DataDirectory.choose(true, true);
+					if (foundInDefault) {
+						let index = ps.confirmEx(null,
+							Zotero.getString('general.error'),
+							Zotero.startupError,
+							buttonFlags,
+							Zotero.getString('dataDir.useNewLocation'),
+							Zotero.getString('general.quit'),
+							Zotero.getString('general.locate'),
+							null, {}
+						);
+						// Revert to home directory
+						if (index == 0) {
+							Zotero.DataDirectory.set(Zotero.DataDirectory.defaultDir);
+							Zotero.Utilities.Internal.quit(true);
+							return;
+						}
+						// Locate data directory
+						else if (index == 2) {
+							Zotero.DataDirectory.choose(true);
+						}
+
 					}
-					// Locate data directory
-					else if (index == 2) {
-						Zotero.DataDirectory.choose(true);
+					else {
+						let index = ps.confirmEx(null,
+							Zotero.getString('general.error'),
+							Zotero.startupError + '\n\n' +
+							Zotero.getString('dataDir.previousDir') + ' ' + previousDir,
+							buttonFlags,
+							Zotero.getString('general.quit'),
+							Zotero.getString('dataDir.useDefaultLocation'),
+							Zotero.getString('general.locate'),
+							null, {}
+						);
+						// Revert to home directory
+						if (index == 1) {
+							Zotero.DataDirectory.set(Zotero.DataDirectory.defaultDir);
+							Zotero.Utilities.Internal.quit(true);
+							return;
+						}
+						// Locate data directory
+						else if (index == 2) {
+							Zotero.DataDirectory.choose(true);
+						}
 					}
 				}
 				return;
@@ -318,6 +378,11 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		}
 		
 		if (!Zotero.isConnector) {
+			yield Zotero.DataDirectory.checkForLostLegacy();
+			if (this.restarting) {
+				return;
+			}
+			
 			yield Zotero.DataDirectory.checkForMigration(
 				dataDir, Zotero.DataDirectory.defaultDir
 			);
@@ -339,13 +404,7 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			Zotero.IPC.init();
 		}
 		catch (e) {
-			if (e.name == 'NS_ERROR_FILE_ACCESS_DENIED') {
-				var msg = Zotero.localeJoin([
-					Zotero.getString('startupError.databaseCannotBeOpened'),
-					Zotero.getString('startupError.checkPermissions')
-				]);
-				Zotero.startupError = msg;
-				Zotero.logError(e);
+			if (_checkDataDirAccessError(e)) {
 				return false;
 			}
 			throw (e);
@@ -470,31 +529,72 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		if (result.some(r => r)) {
 			[Zotero.restoreFromServer, Zotero.resetDataDir] = result;
 			try {
+				yield Zotero.DB.closeDatabase();
+				
 				// TODO: better error handling
 				
 				// TODO: prompt for location
 				// TODO: Back up database
+				// TODO: Reset translators and styles
 				
 				
-				var dbfile = Zotero.DataDirectory.getDatabase();
-				yield OS.File.remove(dbfile, {ignoreAbsent: true});
 				
 				if (Zotero.restoreFromServer) {
+					let dbfile = Zotero.DataDirectory.getDatabase();
+					Zotero.debug("Deleting " + dbfile);
+					yield OS.File.remove(dbfile, { ignoreAbsent: true });
+					let storageDir = OS.Path.join(dataDir, 'storage');
+					Zotero.debug("Deleting " + storageDir.path);
+					OS.File.removeDir(storageDir, { ignoreAbsent: true }),
 					yield OS.File.remove(restoreFile);
 					Zotero.restoreFromServer = true;
-				} else if (Zotero.resetDataDir) {
-					Zotero.initAutoSync = true;
-					var storageDir = OS.Path.join(dataDir, 'storage');
-					yield Zotero.Promise.all([
-						OS.File.removeDir(storageDir, {ignoreAbsent: true}), 
-						OS.File.remove(resetDataDirFile)
-					]);
 				}
+				else if (Zotero.resetDataDir) {
+					Zotero.initAutoSync = true;
+					
+					// Clear some user prefs
+					[
+						'sync.server.username',
+						'sync.storage.username'
+					].forEach(p => Zotero.Prefs.clear(p));
+					
+					// Clear data directory
+					Zotero.debug("Deleting data directory files");
+					let lastError;
+					// Delete all files in directory rather than removing directory, in case it's
+					// a symlink
+					yield Zotero.File.iterateDirectory(dataDir, function* (iterator) {
+						while (true) {
+							let entry = yield iterator.next();
+							// Don't delete some files
+							if (entry.name == 'pipes'
+									|| entry.name.startsWith(Zotero.Fulltext.pdfInfoName)
+									|| entry.name.startsWith(Zotero.Fulltext.pdfConverterName)) {
+								continue;
+							}
+							Zotero.debug("Deleting " + entry.path);
+							try {
+								if (entry.isDir) {
+									yield OS.File.removeDir(entry.path);
+								}
+								else {
+									yield OS.File.remove(entry.path);
+								}
+							}
+							// Keep trying to delete as much as we can
+							catch (e) {
+								lastError = e;
+								Zotero.logError(e);
+							}
+						}
+					});
+					if (lastError) {
+						throw lastError;
+					}
+				}
+				Zotero.debug("Done with reset");
 				
-				// Recreate database with no quick start guide
-				Zotero.Schema.skipDefaultData = true;
-				yield Zotero.Schema.updateSchema();
-				
+				if (!(yield _initDB())) return false;
 			}
 			catch (e) {
 				// Restore from backup?
@@ -565,7 +665,8 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			
 			try {
 				var updated = yield Zotero.Schema.updateSchema({
-					onBeforeUpdate: () => {
+					onBeforeUpdate: (options = {}) => {
+						if (options.minor) return;
 						try {
 							Zotero.showZoteroPaneProgressMeter(
 								Zotero.getString('upgrade.status')
@@ -671,8 +772,10 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 					throw e;
 				}
 				
-				Zotero.startupError = Zotero.getString('startupError.databaseUpgradeError') + "\n\n"
-					+ (e.stack || e);
+				let stack = e.stack ? Zotero.Utilities.Internal.filterStack(e.stack) : null;
+				Zotero.startupError = Zotero.getString('startupError.databaseUpgradeError')
+					+ "\n\n"
+					+ (stack || e);
 				throw e;
 			}
 			
@@ -793,21 +896,17 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			}
 		}
 		catch (e) {
-			if (e.name == 'NS_ERROR_FILE_ACCESS_DENIED') {
-				var msg = Zotero.localeJoin([
-					Zotero.getString('startupError.databaseCannotBeOpened'),
-					Zotero.getString('startupError.checkPermissions')
-				]);
-				Zotero.startupError = msg;
-			}
+			if (_checkDataDirAccessError(e)) {}
 			// Storage busy
-			else if (e.message.endsWith('2153971713')) {
+			else if (e.message.includes('2153971713')) {
 				Zotero.startupError = Zotero.getString('startupError.databaseInUse') + "\n\n"
 					+ Zotero.getString(
 						"startupError.close" + (Zotero.isStandalone ? 'Firefox' : 'Standalone')
 					);
-			} else {
-				Zotero.startupError = Zotero.getString('startupError') + "\n\n" + (e.stack || e);
+			}
+			else {
+				let stack = e.stack ? Zotero.Utilities.Internal.filterStack(e.stack) : null;
+				Zotero.startupError = Zotero.getString('startupError') + "\n\n" + (stack || e);
 			}
 			
 			Zotero.debug(e.toString(), 1);
@@ -818,6 +917,39 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		
 		return true;
 	});
+	
+	
+	function _checkDataDirAccessError(e) {
+		if (e.name != 'NS_ERROR_FILE_ACCESS_DENIED' && !e.message.includes('2152857621')) {
+			return false;
+		}
+		
+		var msg = Zotero.getString('dataDir.databaseCannotBeOpened', Zotero.clientName)
+			+ "\n\n"
+			+ Zotero.getString('dataDir.checkPermissions', Zotero.clientName);
+		// If already using default directory, just show it
+		if (Zotero.DataDirectory.dir == Zotero.DataDirectory.defaultDir) {
+			msg += "\n\n" + Zotero.getString('dataDir.location', Zotero.DataDirectory.dir);
+		}
+		// Otherwise suggest moving to default, since there's a good chance this is due to security
+		// software preventing Zotero from accessing the selected directory (particularly if it's
+		// a Firefox profile)
+		else {
+			msg += "\n\n"
+				+ Zotero.getString('dataDir.moveToDefaultLocation', Zotero.clientName)
+				+ "\n\n"
+				+ Zotero.getString(
+					'dataDir.migration.failure.full.current', Zotero.DataDirectory.dir
+				)
+				+ "\n"
+				+ Zotero.getString(
+					'dataDir.migration.failure.full.recommended', Zotero.DataDirectory.defaultDir
+				);
+		}
+		Zotero.startupError = msg;
+		return true;
+	}
+	
 	
 	/**
 	 * Called when the DB has been released by another Zotero process to perform necessary 
@@ -933,6 +1065,17 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 	}
 	
 	
+	this.openMainWindow = function () {
+		var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+			.getService(Components.interfaces.nsIPrefBranch);
+		var chromeURI = prefService.getCharPref('toolkit.defaultChromeURI');
+		var flags = prefService.getCharPref("toolkit.defaultChromeFeatures", "chrome,dialog=no,all");
+		var ww = Components.classes['@mozilla.org/embedcomp/window-watcher;1']
+			.getService(Components.interfaces.nsIWindowWatcher);
+		return ww.openWindow(null, chromeURI, '_blank', flags, null);
+	}
+	
+	
 	/**
 	 * Launch a file, the best way we can
 	 */
@@ -989,6 +1132,54 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 	
 	
 	/**
+	 * Launch an HTTP URL externally, the best way we can
+	 *
+	 * Used only by Standalone
+	 */
+	this.launchURL = function (url) {
+		if (!url.match(/^https?/)) {
+			throw new Error("launchURL() requires an HTTP(S) URL");
+		}
+		
+		try {
+			var io = Components.classes['@mozilla.org/network/io-service;1']
+						.getService(Components.interfaces.nsIIOService);
+			var uri = io.newURI(url, null, null);
+			var handler = Components.classes['@mozilla.org/uriloader/external-protocol-service;1']
+							.getService(Components.interfaces.nsIExternalProtocolService)
+							.getProtocolHandlerInfo('http');
+			handler.preferredAction = Components.interfaces.nsIHandlerInfo.useSystemDefault;
+			handler.launchWithURI(uri, null);
+		}
+		catch (e) {
+			Zotero.debug("launchWithURI() not supported -- trying fallback executable");
+			
+			if (Zotero.isWin) {
+				var pref = "fallbackLauncher.windows";
+			}
+			else {
+				var pref = "fallbackLauncher.unix";
+			}
+			var path = Zotero.Prefs.get(pref);
+			
+			var exec = Components.classes["@mozilla.org/file/local;1"]
+						.createInstance(Components.interfaces.nsILocalFile);
+			exec.initWithPath(path);
+			if (!exec.exists()) {
+				throw ("Fallback executable not found -- check extensions.zotero." + pref + " in about:config");
+			}
+			
+			var proc = Components.classes["@mozilla.org/process/util;1"]
+							.createInstance(Components.interfaces.nsIProcess);
+			proc.init(exec);
+			
+			var args = [url];
+			proc.runw(false, args, args.length);
+		}
+	}
+	
+	
+	/**
 	 * Opens a URL in the basic viewer, and optionally run a callback on load
 	 *
 	 * @param {String} uri
@@ -1000,9 +1191,13 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		if (win) {
 			win.loadURI(uri);
 		} else {
-			let window = wm.getMostRecentWindow("navigator:browser");
-			win = window.openDialog("chrome://zotero/content/standalone/basicViewer.xul",
-				"basicViewer", "chrome,resizable,centerscreen,menubar,scrollbars", uri);
+			let ww = Components.classes['@mozilla.org/embedcomp/window-watcher;1']
+				.getService(Components.interfaces.nsIWindowWatcher);
+			let arg = Components.classes["@mozilla.org/supports-string;1"]
+				.createInstance(Components.interfaces.nsISupportsString);
+			arg.data = uri;
+			win = ww.openWindow(null, "chrome://zotero/content/standalone/basicViewer.xul",
+				"basicViewer", "chrome,dialog=yes,resizable,centerscreen,menubar,scrollbars", arg);
 		}
 		if (onLoad) {
 			let browser
@@ -1106,21 +1301,22 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 	}
 	
 	
-	function getErrors(asStrings) {
+	this.getErrors = function (asStrings) {
 		var errors = [];
 		
 		for (let msg of _startupErrors.concat(_recentErrors)) {
-			// Remove password in malformed XML messages
+			let altMessage;
+			// Remove password in malformed XML errors
 			if (msg.category == 'malformed-xml') {
 				try {
 					// msg.message is read-only, so store separately
-					var altMessage = msg.message.replace(/(file: "https?:\/\/[^:]+:)([^@]+)(@[^"]+")/, "$1********$3");
+					altMessage = msg.message.replace(/(https?:\/\/[^:]+:)([^@]+)(@[^"]+)/, "$1****$3");
 				}
 				catch (e) {}
 			}
 			
 			if (asStrings) {
-				errors.push(altMessage ? altMessage : msg.message)
+				errors.push(altMessage || msg.message)
 			}
 			else {
 				errors.push(msg);
@@ -1210,11 +1406,11 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 				// If not enough available forms, use last one -- PluralForm.get() uses first by
 				// default, but it's more likely that a localizer will translate the two English
 				// strings with some plural form as the second one, so we might as well use that
-				if (availableForms.length < PluralForm.numForms()) {
+				if (availableForms.length < this.pluralFormNumForms()) {
 					l10n = availableForms[availableForms.length - 1];
 				}
 				else {
-					l10n = PluralForm.get(num, l10n);
+					l10n = this.pluralFormGet(num, l10n);
 				}
 			}
 		}
@@ -2060,9 +2256,29 @@ Zotero.Prefs = new function(){
 	}
 	
 	
-	this.clear = function (pref) {
-		this.prefBranch.clearUserPref(pref);
+	this.clear = function (pref, global) {
+		if (global) {
+			var branch = Services.prefs.getBranch("");
+		}
+		else {
+			var branch = this.prefBranch;
+		}
+		branch.clearUserPref(pref);
 	}
+	
+	
+	this.resetBranch = function (exclude = []) {
+		var keys = this.prefBranch.getChildList("", {});
+		for (let key of keys) {
+			if (this.prefBranch.prefHasUserValue(key)) {
+				if (exclude.includes(key)) {
+					continue;
+				}
+				Zotero.debug("Clearing " + key);
+				this.prefBranch.clearUserPref(key);
+			}
+		}
+	};
 	
 	
 	// Import settings bundles

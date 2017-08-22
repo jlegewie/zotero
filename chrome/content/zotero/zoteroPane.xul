@@ -53,8 +53,12 @@
 		<command id="cmd_zotero_importFromClipboard" oncommand="Zotero_File_Interface.importFromClipboard();"/>
 		<command id="cmd_zotero_exportLibrary" oncommand="Zotero_File_Interface.exportFile();"/>
 		<command id="cmd_zotero_advancedSearch" oncommand="ZoteroPane_Local.openAdvancedSearchWindow();"/>
-		<command id="cmd_zotero_copyCitation" oncommand="ZoteroPane_Local.copySelectedItemsToClipboard(true);"/>
-		<command id="cmd_zotero_copyBibliography" oncommand="ZoteroPane_Local.copySelectedItemsToClipboard();"/>
+		<command id="cmd_zotero_copyCitation"
+			oncommand="ZoteroPane_Local.copySelectedItemsToClipboard(true);"
+			disabled="true"/>
+		<command id="cmd_zotero_copyBibliography"
+			oncommand="ZoteroPane_Local.copySelectedItemsToClipboard();"
+			disabled="true"/>
 		<command id="cmd_zotero_createTimeline" oncommand="Zotero_Timeline_Interface.loadTimeline();"/>
 		<command id="cmd_zotero_rtfScan" oncommand="window.openDialog('chrome://zotero/content/rtfScan.xul', 'rtfScan', 'chrome,centerscreen')"/>
 		<command id="cmd_zotero_newCollection" oncommand="ZoteroPane_Local.newCollection()"/>
@@ -257,7 +261,9 @@
 			</toolbar>
 			
 			<popupset>
-				<menupopup id="zotero-collectionmenu" onpopupshowing="ZoteroPane_Local.buildCollectionContextMenu();">
+				<menupopup id="zotero-collectionmenu"
+						onpopupshowing="ZoteroPane_Local.buildCollectionContextMenu();"
+						oncommand="ZoteroPane.onCollectionContextMenuSelect(event)">
 					<!-- Keep order in sync with buildCollectionContextMenu, which adds additional attributes -->
 					<menuitem class="zotero-menuitem-sync"/>
 					<menuseparator/>
@@ -283,7 +289,7 @@
 				</menupopup>
 				<menupopup id="zotero-itemmenu">
 					<!-- Keep order in sync with buildItemContextMenu -->
-					<menuitem class="menuitem-iconic zotero-menuitem-show-in-library" label="&zotero.items.menu.showInLibrary;" oncommand="ZoteroPane_Local.selectItem(this.parentNode.getAttribute('itemID'), true)"/>
+					<menuitem class="menuitem-iconic zotero-menuitem-show-in-library" label="&zotero.items.menu.showInLibrary;" oncommand="ZoteroPane.selectItem(parseInt(this.parentNode.getAttribute('itemID')), true)"/>
 					<menuseparator/>
 					<!-- with icon: <menuitem class="menuitem-iconic" id="zotero-menuitem-note" label="&zotero.items.menu.attach.note;" oncommand="ZoteroPane_Local.newNote(false, this.parentNode.getAttribute('itemID'))"/>-->
 					<menuitem class="menuitem-iconic zotero-menuitem-attach-note" label="&zotero.items.menu.attach.note;" oncommand="ZoteroPane_Local.newNote(false, this.parentNode.getAttribute('itemKey'))"/>
@@ -373,6 +379,7 @@
 								onkeydown="ZoteroPane_Local.handleKeyDown(event, this.id)"
 								onselect="ZoteroPane_Local.itemSelected(event)"
 								oncommand="ZoteroPane_Local.serializePersist()"
+								oncontextmenu="ZoteroPane.onItemsContextMenuOpen(event)"
 								flex="1"
 								hidden="true"
 								zotero-persist="current-view-group">

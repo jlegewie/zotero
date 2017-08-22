@@ -79,6 +79,8 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 	var _currentLastSyncLabel;
 	var _errors = [];
 	
+	Zotero.addShutdownListener(() => this.stop());
+	
 	this.getAPIClient = function (options = {}) {
 		return new Zotero.Sync.APIClient({
 			baseURL: this.baseURL,
@@ -269,7 +271,7 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 		var json = yield client.getKeyInfo(options);
 		Zotero.debug(json);
 		if (!json) {
-			throw new Zotero.Error("API key not set", Zotero.Error.ERROR_API_KEY_NOT_SET);
+			throw new Zotero.Error("API key not set", Zotero.Error.ERROR_API_KEY_INVALID);
 		}
 		
 		// Sanity check
@@ -607,12 +609,26 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 	 */
 	var _doFileSync = Zotero.Promise.coroutine(function* (libraries, options) {
 		Zotero.debug("Starting file syncing");
-		this.setSyncStatus(Zotero.getString('sync.status.syncingFiles'));
 		var resyncLibraries = []
 		for (let libraryID of libraries) {
 			_stopCheck();
+			let libraryName = Zotero.Libraries.get(libraryID).name;
+			this.setSyncStatus(
+				Zotero.getString('sync.status.syncingFilesInLibrary', libraryName)
+			);
 			try {
-				let opts = {};
+				let opts = {
+					onProgress: (progress, progressMax) => {
+						var remaining = progressMax - progress;
+						this.setSyncStatus(
+							Zotero.getString(
+								'sync.status.syncingFilesInLibraryWithRemaining',
+								[libraryName, remaining],
+								remaining
+							)
+						);
+					}
+				};
 				Object.assign(opts, options);
 				opts.libraryID = libraryID;
 				

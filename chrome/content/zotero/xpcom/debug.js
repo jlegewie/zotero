@@ -38,7 +38,7 @@ Zotero.Debug = new function () {
 	 * Debug logging can be set in several different ways:
 	 *
 	 *   - via the debug.log pref in the client or connector
-	 *   - by enabling debug output logging in the Advanced prefs in the client
+	 *   - by enabling debug output logging from the Help menu
 	 *   - by passing -ZoteroDebug or -ZoteroDebugText on the command line
 	 *
 	 * In the client, debug.log and -ZoteroDebugText enable logging via the terminal, while -ZoteroDebug
@@ -151,6 +151,13 @@ Zotero.Debug = new function () {
 				}
 				// Console window
 				if (_consoleViewer) {
+					// Remove ANSI color codes. We could replace this with HTML, but it's probably
+					// unnecessarily distracting/alarming to show the red in the viewer. Devs who care
+					// about times should just use a terminal.
+					if (slowPrefix) {
+						output = output.replace(slowPrefix, '').replace(slowSuffix, '');
+					}
+					
 					// If there's a listener, pass line immediately
 					if (_consoleViewerListener) {
 						_consoleViewerListener(output);
@@ -198,11 +205,9 @@ Zotero.Debug = new function () {
 		if (maxChars) {
 			output = output.substr(maxChars * -1);
 			// Cut at two newlines
-			for (var i=1, len=output.length; i<len; i++) {
-				if (output[i] == '\n' && output[i-1] == '\n') {
-					output = output.substr(i + 1);
-					break;
-				}
+			let matches = output.match(/^[\n]*\n\n/);
+			if (matches) {
+				output = output.substr(matches[0].length);
 			}
 		}
 
@@ -226,13 +231,14 @@ Zotero.Debug = new function () {
 	
 	
 	this.getConsoleViewerOutput = function () {
-		var queue = _consoleViewerQueue;
+		var queue = _output.concat(_consoleViewerQueue);
 		_consoleViewerQueue = [];
 		return queue;
 	}
 	
 	
 	this.addConsoleViewerListener = function (listener) {
+		this.enabled = _consoleViewer = true;
 		_consoleViewerListener = listener;
 	};
 	

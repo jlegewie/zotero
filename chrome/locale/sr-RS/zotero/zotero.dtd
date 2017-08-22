@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Освежи">
 <!ENTITY zotero.general.saveAs "Сачувај као…">
 <!ENTITY zotero.general.advancedOptions.label "Напредне опције">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "Више">
 <!ENTITY zotero.general.loading "Учитавам…">
 
 <!ENTITY zotero.errorReport.title "Пријављивање грешака у Зотеру">
-<!ENTITY zotero.errorReport.unrelatedMessages "Ово може да обухвати поруке које немају везе са Зотером.">
 <!ENTITY zotero.errorReport.submissionInProgress "Сачекајте док пошаљемо извештај о грешци.">
 <!ENTITY zotero.errorReport.submitted "Извештај о грешци је послат.">
 <!ENTITY zotero.errorReport.reportID "Број извештаја:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Погледај на мрежи">
 <!ENTITY zotero.item.copyAsURL "Копирај као адресу">
 <!ENTITY zotero.item.deletePermanently "Трајно изриши…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "Нова белешка">
 <!ENTITY zotero.toolbar.note.standalone "Нова самостална белешка">

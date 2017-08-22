@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Uppdatera">
 <!ENTITY zotero.general.saveAs "Spara som…">
 <!ENTITY zotero.general.advancedOptions.label "Avancerade alternativ">
+<!ENTITY zotero.general.tools "Verktyg">
 <!ENTITY zotero.general.more "Mera">
 <!ENTITY zotero.general.loading "Laddar...">
 
 <!ENTITY zotero.errorReport.title "Zotero-felrapporting">
-<!ENTITY zotero.errorReport.unrelatedMessages "Det kan innehålla meddelanden som inte har med Zotero att göra.">
 <!ENTITY zotero.errorReport.submissionInProgress "Var vänlig vänta medan felrapporten skickas.">
 <!ENTITY zotero.errorReport.submitted "Felrapporten har skickats.">
 <!ENTITY zotero.errorReport.reportID "Rapport-ID:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "Visa online">
 <!ENTITY zotero.item.copyAsURL "Kopiera som URL">
 <!ENTITY zotero.item.deletePermanently "Radera permanent…">
+
+<!ENTITY zotero.item.tags.removeAll "Radera alla etiketter…">
 
 <!ENTITY zotero.toolbar.newNote "Ny anteckning">
 <!ENTITY zotero.toolbar.note.standalone "Ny fristående anteckning">

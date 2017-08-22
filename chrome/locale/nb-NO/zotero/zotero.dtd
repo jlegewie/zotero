@@ -11,11 +11,11 @@
 <!ENTITY zotero.general.refresh "Oppdater">
 <!ENTITY zotero.general.saveAs "Lagre som...">
 <!ENTITY zotero.general.advancedOptions.label "Avanserte valg">
+<!ENTITY zotero.general.tools "Tools">
 <!ENTITY zotero.general.more "Mer">
 <!ENTITY zotero.general.loading "Laster inn...">
 
 <!ENTITY zotero.errorReport.title "Zotero Error Report">
-<!ENTITY zotero.errorReport.unrelatedMessages "This may include messages unrelated to Zotero.">
 <!ENTITY zotero.errorReport.submissionInProgress "Vennligst vent mens feilrapporten blir levert.">
 <!ENTITY zotero.errorReport.submitted "Feilrapporten er levert.">
 <!ENTITY zotero.errorReport.reportID "Rapport-ID:">
@@ -142,6 +142,8 @@
 <!ENTITY zotero.item.viewOnline "View Online">
 <!ENTITY zotero.item.copyAsURL "Copy as URL">
 <!ENTITY zotero.item.deletePermanently "Delete Permanently…">
+
+<!ENTITY zotero.item.tags.removeAll "Remove All Tags…">
 
 <!ENTITY zotero.toolbar.newNote "New Note">
 <!ENTITY zotero.toolbar.note.standalone "Nytt enkeltstående notat">

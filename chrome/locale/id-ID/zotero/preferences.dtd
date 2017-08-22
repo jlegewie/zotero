@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Ketika opsi ini dimatikan, Zotero hanya akan memasukkan URL pada saat mengutip artikel  jurnal, majalah, dan koran yang tidak memiliki rentang halaman spesifik.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Salin Cepat">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Format Ouput Default:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Salin sebagai HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Catatan: Pemformatan rich-text akan hilang pada Mac OS X.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Pengaturan Spesifik-Situs">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Domain/Rute">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(misalnya, wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Format Ouput">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Language">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Matikan fitur Salin Cepat saat menarik lebih dari">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Gunakan kotak dialog Tambahkan Sitasi klasik">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Pengelola Gaya">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Judul">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Files and Folders">
 <!ENTITY zotero.preferences.advanced.keys "Shortcuts">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Temukan">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Pengelola Mesin Pencarian Artikel">
 <!ENTITY zotero.preferences.locate.description "Deskripsi">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Pencatatan Output Debug">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Output debug dapat membantu pengembang Zotero untuk mendiagnosis masalah yang terjadi pada Zotero.  Pencatatan debug akan memperlambat Zotero, sehingga Anda sebaiknya tetap menonaktifkannya, kecuali bila pengembang Zotero meminta output debug.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "baris tercatat">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Aktifkan setelah restart">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Lihat Output">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Bersihkan Output">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Kirimkan ke Server Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "Buka about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Open Style Editor">
-<!ENTITY zotero.preferences.openCSLPreview "Open Style Preview">
-<!ENTITY zotero.preferences.openAboutMemory "Open about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

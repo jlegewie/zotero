@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Όταν επιλέγεται αυτή η λειτουργία το Zotero συμπεριλαμβάνει τις διευθύνσεις URL κατά την παράθεση άρθρων περιοδικών και εφημερίδων, μόνο αν στα άρθρα δεν ορίζεται το εύρος των σελίδων.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Γρήγορη αντιγραφή">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Αρχική μορφή προϊόντος/εξόδου:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Αντιγραφή ως HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Σημείωση: η μορφοποίηση εμπλουτισμένου κειμένου θα χαθεί στο Mac OS X.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Ρυθμίσεις βάσει ιστοτόπου:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Περιοχή/Διαδρομή">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(π.χ. wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Μορφή παραγόμενου αρχείου">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Language">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Απενεργοποίηση της Γρήγορης αντιγραφής όταν σύρονται περισσότερα από">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Χρήση του κλασικού διαλόγου Προσθήκη παραπομπής">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Διαχειριστής στυλ">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Τίτλ">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Αρχεία και Φάκελοι">
 <!ENTITY zotero.preferences.advanced.keys "Shortcuts">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Εντοπισμός">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Διαχειριστής Μηχανής Αναζήτησης Άρθρων">
 <!ENTITY zotero.preferences.locate.description "Περιγραφή">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Καταγραφές αποσφαλμάτωσης αποτελεσμάτων">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Η έξοδος ή αποτέλεσμα προς αποσφαλμάτωση μπορεί να βοηθήσει τους προγραμματιστές του Zotero να διαγιγνώσκουν προβλήματα. Οι καταγραφές αποσφαλμάτωσης θα επιβραδύνουν το Zotero, γι' αυτό εν γένει πρέπει να μην τις ενεργοποιείτε, εκτός κι αν κάποιος προγραμματιστής του Zotero ζητά εξόδους αποσφαλμάτωσης.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "καταγεγραμμένες γραμμές">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Ενεργοποίηση μετά από επανεκκίνηση">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Προβολή εξόδου">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Εκκαθάριση εξόδου">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Να υποβληθούν στον διακομιστή Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "Άνοιγμα about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Open Style Editor">
-<!ENTITY zotero.preferences.openCSLPreview "Open Style Preview">
-<!ENTITY zotero.preferences.openAboutMemory "Άνοιγμα about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

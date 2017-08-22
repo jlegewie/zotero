@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Kui see ei ole valitud, siis Zotero lisab URL vaid siis kui tsiteeritaval artiklil ei ole määratud lehekülgede vahemikku.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Kiirkopeerimine">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Vaikimisi formaat:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Kopeerida HTML kujul">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Märkus: Mac OS X-l läheb RTF formateering kaotsi.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Leheküljespetsiifilised seaded:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Domeen/aadress">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(nt wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Väljundformaat">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Keel">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Peatada kiirkopeerimine juhul kui lohistatakse rohkem kui">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Tavaline tsitaadi lisamise vorm">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Stiilide haldamine">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Pealkiri">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Failid ja kataloogid">
 <!ENTITY zotero.preferences.advanced.keys "Kiirvaliku klahvid">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Otsing">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Artikli otsingumootori haldaja">
 <!ENTITY zotero.preferences.locate.description "Kirjeldus">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Veateadete logimine">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Veateadete logimine aitab Zotero arendajatel diagnoosida Zoteroga esinevaid probleeme. Veateadete logimine aeglustab Zotero tegevust, niisiis ei ole seda üldjuhul tarvis sisse lülitada.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "ridu logitud">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Lülitada pärast taaskäivitamist sisse">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Logi vaatamine">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Logi tühjendamine">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Saata Zotero serverisse">
-
-<!ENTITY zotero.preferences.openAboutConfig "Avada about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Avada stiilide redaktor">
-<!ENTITY zotero.preferences.openCSLPreview "Avada stiilide eelvaade">
-<!ENTITY zotero.preferences.openAboutMemory "Avada about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

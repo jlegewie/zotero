@@ -333,6 +333,24 @@ Zotero.Sync.Data.Local = {
 	
 	
 	/**
+	 * @param {Zotero.Library[]} libraries
+	 * @return {Zotero.Library[]}
+	 */
+	filterSkippedLibraries: function (libraries) {
+		var skippedLibraries = this.getSkippedLibraries();
+		var skippedGroups = this.getSkippedGroups();
+		
+		return libraries.filter((library) => {
+			var libraryType = library.libraryType;
+			if (libraryType == 'group') {
+				return !skippedGroups.includes(library.groupID);
+			}
+			return !skippedLibraries.includes(library.libraryID);
+		});
+	},
+	
+	
+	/**
 	 * @return {nsILoginInfo|false}
 	 */
 	_getAPIKeyLoginInfo: function () {
@@ -593,15 +611,22 @@ Zotero.Sync.Data.Local = {
 	
 	getCacheObjects: Zotero.Promise.coroutine(function* (objectType, libraryID, keyVersionPairs) {
 		if (!keyVersionPairs.length) return [];
-		var sql = "SELECT data FROM syncCache SC JOIN (SELECT "
-			+ keyVersionPairs.map(function (pair) {
-				Zotero.DataObjectUtilities.checkKey(pair[0]);
-				return "'" + pair[0] + "' AS key, " + parseInt(pair[1]) + " AS version";
-			}).join(" UNION SELECT ")
-			+ ") AS pairs ON (pairs.key=SC.key AND pairs.version=SC.version) "
-			+ "WHERE libraryID=? AND "
-			+ "syncObjectTypeID IN (SELECT syncObjectTypeID FROM syncObjectTypes WHERE name=?)";
-		var rows = yield Zotero.DB.columnQueryAsync(sql, [libraryID, objectType]);
+		var rows = [];
+		yield Zotero.Utilities.Internal.forEachChunkAsync(
+			keyVersionPairs,
+			240, // SQLITE_MAX_COMPOUND_SELECT defaults to 500
+			async function (chunk) {
+				var sql = "SELECT data FROM syncCache SC JOIN (SELECT "
+					+ chunk.map((pair) => {
+						Zotero.DataObjectUtilities.checkKey(pair[0]);
+						return "'" + pair[0] + "' AS key, " + parseInt(pair[1]) + " AS version";
+					}).join(" UNION SELECT ")
+					+ ") AS pairs ON (pairs.key=SC.key AND pairs.version=SC.version) "
+					+ "WHERE libraryID=? AND "
+					+ "syncObjectTypeID IN (SELECT syncObjectTypeID FROM syncObjectTypes WHERE name=?)";
+				rows.push(...await Zotero.DB.columnQueryAsync(sql, [libraryID, objectType]));
+			}
+		)
 		return rows.map(row => JSON.parse(row));
 	}),
 	

@@ -44,7 +44,7 @@
 
 <!ENTITY toolsMenu.label "Eszközök">
 <!ENTITY toolsMenu.accesskey "E">
-<!ENTITY installConnector.label "Install Browser Connector">
+<!ENTITY installConnector.label "Böngészőmodul telepítése">
 <!ENTITY installConnector.accesskey "C">
 <!ENTITY addons.label "Kiegészítők">
 
@@ -69,10 +69,18 @@
 <!ENTITY productHelp.accesskey "D">
 <!ENTITY helpTroubleshootingInfo.label "Hibaelhárítás">
 <!ENTITY helpTroubleshootingInfo.accesskey "T">
-<!ENTITY helpFeedbackPage.label "Visszajelzés küldése…">
-<!ENTITY helpFeedbackPage.accesskey "S">
+<!ENTITY helpFeedbackPage.label "Discussion Forums">
+<!ENTITY helpFeedbackPage.accesskey "F">
 
-<!ENTITY helpReportErrors.label "Hiba jelentése a Zotero-nak…">
+<!ENTITY helpReportErrors.label "Report Errors…">
 <!ENTITY helpReportErrors.accesskey "R">
+
+<!ENTITY debugOutputLogging.label "Debug Output Logging">
+<!ENTITY debugOutputLogging.accesskey "L">
+<!ENTITY debugOutputLogging.submit "Kimenet elküldése">
+<!ENTITY debugOutputLogging.view "View Output">
+<!ENTITY debugOutputLogging.clear "Clear Output">
+<!ENTITY debugOutputLogging.restartWithLoggingEnabled "Restart with Logging Enabled…">
+
 <!ENTITY helpCheckForUpdates.label "Frissítések keresése…">
 <!ENTITY helpCheckForUpdates.accesskey "F">

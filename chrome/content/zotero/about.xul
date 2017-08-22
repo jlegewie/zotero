@@ -19,7 +19,7 @@
 		<label id="name" value="Zotero"/>
 		<hbox>
 			<label id="version"/>
-			<label class="zotero-text-link" href="https://www.zotero.org/support/changelog" value="&zotero.whatsNew;"/>
+			<label id="changelog" class="zotero-text-link" href="https://www.zotero.org/support/changelog" value="&zotero.whatsNew;"/>
 		</hbox>
 		<script>
 			document.getElementById('version').textContent = Zotero.version;
@@ -53,7 +53,7 @@
 						for (let span of document.getElementById('about-text').getElementsByTagName('span')) {
 							span.className = 'text-link';
 							span.onclick = function () {
-								window.opener.ZoteroPane.loadURI(this.getAttribute('data-href'));
+								Zotero.launchURL(this.getAttribute('data-href'));
 							};
 						}
 					]]></script>

@@ -73,13 +73,6 @@ var ZoteroPane = new function()
 	this.init = function () {
 		Zotero.debug("Initializing Zotero pane");
 		
-		// Fix window without menubar/titlebar when Standalone is closed in full-screen mode
-		// in OS X 10.11
-		if (Zotero.isMac && Zotero.isStandalone
-				&& window.document.documentElement.getAttribute('sizemode') == 'fullscreen') {
-			window.document.documentElement.setAttribute('sizemode', 'normal');
-		}
-		
 		// For now, keep actions menu in the DOM and show it in Firefox for development
 		if (!Zotero.isStandalone) {
 			document.getElementById('zotero-tb-actions-menu-separator').hidden = false;
@@ -733,12 +726,6 @@ var ZoteroPane = new function()
 				case 'toggleTagSelector':
 					ZoteroPane_Local.toggleTagSelector();
 					break;
-				case 'copySelectedItemCitationsToClipboard':
-					ZoteroPane_Local.copySelectedItemsToClipboard(true)
-					break;
-				case 'copySelectedItemsToClipboard':
-					ZoteroPane_Local.copySelectedItemsToClipboard();
-					break;
 				case 'sync':
 					Zotero.Sync.Runner.sync();
 					break;
@@ -756,6 +743,14 @@ var ZoteroPane = new function()
 						this.markFeedRead();
 					}
 					break;
+				
+				// Handled by <key>s in standalone.js, pointing to <command>s in zoteroPane.xul,
+				// which are enabled or disabled by this.updateQuickCopyCommands(), called by
+				// this.itemSelected()
+				case 'copySelectedItemCitationsToClipboard':
+				case 'copySelectedItemsToClipboard':
+					return;
+				
 				default:
 					throw ('Command "' + command + '" not found in ZoteroPane_Local.handleKeyDown()');
 			}
@@ -1403,6 +1398,8 @@ var ZoteroPane = new function()
 			// selection hasn't changed, because the selected items might have been modified.
 			this.updateItemPaneButtons(selectedItems);
 			
+			this.updateQuickCopyCommands(selectedItems);
+			
 			// Check if selection has actually changed. The onselect event that calls this
 			// can be called in various situations where the selection didn't actually change,
 			// such as whenever selectEventsSuppressed is set to false.
@@ -1479,6 +1476,12 @@ var ZoteroPane = new function()
 					
 					document.getElementById('zotero-item-pane-content').selectedIndex = 1;
 					var tabBox = document.getElementById('zotero-view-tabbox');
+					
+					// Reset tab when viewing a feed item, which only has the info tab
+					if (item.isFeedItem) {
+						tabBox.selectedIndex = 0;
+					}
+					
 					var pane = tabBox.selectedIndex;
 					tabBox.firstChild.hidden = isCommons;
 					
@@ -1694,6 +1697,25 @@ var ZoteroPane = new function()
 			}
 		}
 	}
+	
+	
+	/**
+	 * Update the <command> elements that control the shortcut keys and the enabled state of the
+	 * "Copy Citation"/"Copy Bibliography"/"Copy as" menu options. When disabled, the shortcuts are
+	 * still caught in handleKeyPress so that we can show an alert about not having references selected.
+	 */
+	this.updateQuickCopyCommands = function (selectedItems) {
+		var format = Zotero.QuickCopy.getFormatFromURL(Zotero.QuickCopy.lastActiveURL);
+		format = Zotero.QuickCopy.unserializeSetting(format);
+		if (format.mode == 'bibliography') {
+			var canCopy = selectedItems.some(item => item.isRegularItem());
+		}
+		else {
+			var canCopy = true;
+		}
+		document.getElementById('cmd_zotero_copyCitation').setAttribute('disabled', !canCopy);
+		document.getElementById('cmd_zotero_copyBibliography').setAttribute('disabled', !canCopy);
+	};
 	
 	
 	this.checkPDFConverter = function () {
@@ -2130,32 +2152,29 @@ var ZoteroPane = new function()
 			return;
 		}
 		
-		// Make sure at least one item is a regular item
-		//
+		var format = Zotero.QuickCopy.getFormatFromURL(Zotero.QuickCopy.lastActiveURL);
+		format = Zotero.QuickCopy.unserializeSetting(format);
+		
+		// In bibliography mode, remove notes and attachments
+		if (format.mode == 'bibliography') {
+			items = items.filter(item => item.isRegularItem());
+		}
+		
 		// DEBUG: We could copy notes via keyboard shortcut if we altered
 		// Z_F_I.copyItemsToClipboard() to use Z.QuickCopy.getContentFromItems(),
 		// but 1) we'd need to override that function's drag limit and 2) when I
 		// tried it the OS X clipboard seemed to be getting text vs. HTML wrong,
 		// automatically converting text/html to plaintext rather than using
 		// text/unicode. (That may be fixable, however.)
-		var canCopy = false;
-		for (let i = 0; i < items.length; i++) {
-			let item = items[i];
-			if (item.isRegularItem()) {
-				canCopy = true;
-				break;
-			}
-		}
-		if (!canCopy) {
-			var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
+		//
+		// This isn't currently shown, because the commands are disabled when not relevant, so this
+		// function isn't called
+		if (!items.length) {
+			let ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
 									.getService(Components.interfaces.nsIPromptService);
 			ps.alert(null, "", Zotero.getString("fileInterface.noReferencesError"));
 			return;
 		}
-		
-		var url = (window.content && window.content.location ? window.content.location.href : null);
-		var format = Zotero.QuickCopy.getFormatFromURL(url);
-		format = Zotero.QuickCopy.unserializeSetting(format);
 		
 		// determine locale preference
 		var locale = format.locale ? format.locale : Zotero.Prefs.get('export.quickCopy.locale');
@@ -2345,127 +2364,127 @@ var ZoteroPane = new function()
 	}
 	
 	
+	// menuitem configuration
+	//
+	// This has to be kept in sync with zotero-collectionmenu in zoteroPane.xul. We could do this
+	// entirely in JS, but various localized strings are only in zotero.dtd, and they're used in
+	// standalone.xul as well, so for now they have to remain as XML entities.
+	var _collectionContextMenuOptions = [
+		{
+			id: "sync",
+			label: Zotero.getString('sync.sync'),
+			oncommand: () => {
+				Zotero.Sync.Runner.sync({
+					libraries: [this.getSelectedLibraryID()],
+				});
+			}
+		},
+		{
+			id: "sep1",
+		},
+		{
+			id: "newCollection",
+			command: "cmd_zotero_newCollection"
+		},
+		{
+			id: "newSavedSearch",
+			command: "cmd_zotero_newSavedSearch"
+		},
+		{
+			id: "newSubcollection",
+			oncommand: () => {
+				this.newCollection(this.getSelectedCollection().key);
+			}
+		},
+		{
+			id: "refreshFeed",
+			oncommand: () => this.refreshFeed()
+		},
+		{
+			id: "sep2",
+		},
+		{
+			id: "showDuplicates",
+			oncommand: () => {
+				this.setVirtual(this.getSelectedLibraryID(), 'duplicates', true);
+			}
+		},
+		{
+			id: "showUnfiled",
+			oncommand: () => {
+				this.setVirtual(this.getSelectedLibraryID(), 'unfiled', true);
+			}
+		},
+		{
+			id: "editSelectedCollection",
+			oncommand: () => this.editSelectedCollection()
+		},
+		{
+			id: "markReadFeed",
+			oncommand: () => this.markFeedRead()
+		},
+		{
+			id: "editSelectedFeed",
+			oncommand: () => this.editSelectedFeed()
+		},
+		{
+			id: "deleteCollection",
+			oncommand: () => this.deleteSelectedCollection()
+		},
+		{
+			id: "deleteCollectionAndItems",
+			oncommand: () => this.deleteSelectedCollection(true)
+		},
+		{
+			id: "sep3",
+		},
+		{
+			id: "exportCollection",
+			oncommand: () => Zotero_File_Interface.exportCollection()
+		},
+		{
+			id: "createBibCollection",
+			oncommand: () => Zotero_File_Interface.bibliographyFromCollection()
+		},
+		{
+			id: "exportFile",
+			oncommand: () => Zotero_File_Interface.exportFile()
+		},
+		{
+			id: "loadReport",
+			oncommand: event => Zotero_Report_Interface.loadCollectionReport(event)
+		},
+		{
+			id: "emptyTrash",
+			oncommand: () => this.emptyTrash()
+		},
+		{
+			id: "removeLibrary",
+			label: Zotero.getString('pane.collections.menu.remove.library'),
+			oncommand: () => {
+				let library = Zotero.Libraries.get(this.getSelectedLibraryID());
+				let ps = Services.prompt;
+				let buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING)
+					+ (ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_CANCEL);
+				let index = ps.confirmEx(
+					null,
+					Zotero.getString('pane.collections.removeLibrary'),
+					Zotero.getString('pane.collections.removeLibrary.text', library.name),
+					buttonFlags,
+					Zotero.getString('general.remove'),
+					null,
+					null, null, {}
+				);
+				if (index == 0) {
+					library.eraseTx();
+				}
+			}
+		},
+	];
+	
 	this.buildCollectionContextMenu = function (noRepeat) {
 		var libraryID = this.getSelectedLibraryID();
-		
-		// menuitem configuration
-		//
-		// This has to be kept in sync with zotero-collectionmenu in zoteroPane.xul. We could do this
-		// entirely in JS, but various localized strings are only in zotero.dtd, and they're used in
-		// standalone.xul as well, so for now they have to remain as XML entities.
-		var options = [
-			{
-				id: "sync",
-				label: Zotero.getString('sync.sync'),
-				onclick: () => {
-					Zotero.Sync.Runner.sync({
-						libraries: [libraryID],
-					});
-				}
-			},
-			{
-				id: "sep1",
-			},
-			{
-				id: "newCollection",
-				command: "cmd_zotero_newCollection"
-			},
-			{
-				id: "newSavedSearch",
-				command: "cmd_zotero_newSavedSearch"
-			},
-			{
-				id: "newSubcollection",
-				onclick: () => {
-					this.newCollection(this.getSelectedCollection().key);
-				}
-			},
-			{
-				id: "refreshFeed",
-				onclick: () => this.refreshFeed()
-			},
-			{
-				id: "sep2",
-			},
-			{
-				id: "showDuplicates",
-				onclick: () => {
-					this.setVirtual(libraryID, 'duplicates', true);
-				}
-			},
-			{
-				id: "showUnfiled",
-				onclick: () => {
-					this.setVirtual(libraryID, 'unfiled', true);
-				}
-			},
-			{
-				id: "editSelectedCollection",
-				onclick: () => this.editSelectedCollection()
-			},
-			{
-				id: "markReadFeed",
-				onclick: () => this.markFeedRead()
-			},
-			{
-				id: "editSelectedFeed",
-				onclick: () => this.editSelectedFeed()
-			},
-			{
-				id: "deleteCollection",
-				onclick: () => this.deleteSelectedCollection()
-			},
-			{
-				id: "deleteCollectionAndItems",
-				onclick: () => this.deleteSelectedCollection(true)
-			},
-			{
-				id: "sep3",
-			},
-			{
-				id: "exportCollection",
-				onclick: () => Zotero_File_Interface.exportCollection()
-			},
-			{
-				id: "createBibCollection",
-				onclick: () => Zotero_File_Interface.bibliographyFromCollection()
-			},
-			{
-				id: "exportFile",
-				onclick: () => Zotero_File_Interface.exportFile()
-			},
-			{
-				id: "loadReport",
-				onclick: event => Zotero_Report_Interface.loadCollectionReport(event)
-			},
-			{
-				id: "emptyTrash",
-				onclick: () => this.emptyTrash()
-			},
-			{
-				id: "removeLibrary",
-				label: Zotero.getString('pane.collections.menu.remove.library'),
-				onclick: () => {
-					let library = Zotero.Libraries.get(libraryID);
-					let ps = Services.prompt;
-					let buttonFlags = (ps.BUTTON_POS_0) * (ps.BUTTON_TITLE_IS_STRING)
-						+ (ps.BUTTON_POS_1) * (ps.BUTTON_TITLE_CANCEL);
-					let index = ps.confirmEx(
-						null,
-						Zotero.getString('pane.collections.removeLibrary'),
-						Zotero.getString('pane.collections.removeLibrary.text', library.name),
-						buttonFlags,
-						Zotero.getString('general.remove'),
-						null,
-						null, null, {}
-					);
-					if (index == 0) {
-						library.eraseTx();
-					}
-				}
-			},
-		];
-		
+		var options = _collectionContextMenuOptions;
 		
 		var collectionTreeRow = this.collectionsView.selectedTreeRow;
 		// This can happen if selection is changing during delayed second call below
@@ -2498,9 +2517,6 @@ var ZoteroPane = new function()
 			}
 			if (option.command) {
 				menuitem.setAttribute('command', option.command);
-			}
-			else if (option.onclick) {
-				menuitem.onclick = option.onclick;
 			}
 		}
 		
@@ -2659,7 +2675,27 @@ var ZoteroPane = new function()
 		for (let id of disable) {
 			m[id].setAttribute('disabled', true);
 		}
-	}
+	};
+	
+	this.onCollectionContextMenuSelect = function (event) {
+		event.stopPropagation();
+		var o = _collectionContextMenuOptions.find(o => o.id == event.target.id)
+		if (o.oncommand) {
+			o.oncommand();
+		}
+	};
+	
+	/**
+	 * Show context menu once it's ready
+	 */
+	this.onItemsContextMenuOpen = function (event) {
+		ZoteroPane.buildItemContextMenu()
+		.then(function () {
+			document.getElementById('zotero-itemmenu').openPopup(
+				null, null, event.clientX + 1, event.clientY + 1, true, false, event
+			);
+		})
+	};
 	
 	this.buildItemContextMenu = Zotero.Promise.coroutine(function* () {
 		var options = [
@@ -3006,20 +3042,6 @@ var ZoteroPane = new function()
 			}
 		}
 		else if (tree.id == 'zotero-items-tree') {
-			// Show context menu once it's ready
-			if (event.button == 2) {
-				// Allow item to be selected first
-				setTimeout(function () {
-					ZoteroPane_Local.buildItemContextMenu()
-					.then(function () {
-						document.getElementById('zotero-itemmenu').openPopup(
-							null, null, event.clientX + 1, event.clientY + 1, true, false, event
-						);
-					})
-				});
-				return;
-			}
-			
 			let collectionTreeRow = ZoteroPane_Local.getCollectionTreeRow();
 			
 			// Automatically select all equivalent items when clicking on an item
@@ -3257,7 +3279,7 @@ var ZoteroPane = new function()
 				if (uri.startsWith('zotero:')) {
 					let nsIURI = Services.io.newURI(uri, null, null);
 					let handler = Components.classes["@mozilla.org/network/protocol;1?name=zotero"]
-						.createInstance(Components.interfaces.nsIProtocolHandler);
+						.getService();
 					let extension = handler.wrappedJSObject.getExtension(nsIURI);
 					if (extension.noContent) {
 						extension.doAction(nsIURI);
@@ -4101,8 +4123,7 @@ var ZoteroPane = new function()
 			}
 			else {
 				if (!item.isImportedAttachment()
-						|| (!Zotero.Sync.Storage.Local.getEnabledForLibrary(item.libraryID)
-							|| !Zotero.Sync.Storage.Local.downloadAsNeeded(item.libraryID))) {
+						|| !Zotero.Sync.Storage.Local.getEnabledForLibrary(item.libraryID)) {
 					this.showAttachmentNotFoundDialog(itemID, noLocateOnMissing);
 					return;
 				}
@@ -4143,50 +4164,11 @@ var ZoteroPane = new function()
 	
 	
 	/**
-	 * Launch an HTTP URL externally, the best way we can
-	 *
-	 * Used only by Standalone
+	 * @deprecated
 	 */
 	this.launchURL = function (url) {
-		if (!url.match(/^https?/)) {
-			throw new Error("launchURL() requires an HTTP(S) URL");
-		}
-		
-		try {
-			var io = Components.classes['@mozilla.org/network/io-service;1']
-						.getService(Components.interfaces.nsIIOService);
-			var uri = io.newURI(url, null, null);
-			var handler = Components.classes['@mozilla.org/uriloader/external-protocol-service;1']
-							.getService(Components.interfaces.nsIExternalProtocolService)
-							.getProtocolHandlerInfo('http');
-			handler.preferredAction = Components.interfaces.nsIHandlerInfo.useSystemDefault;
-			handler.launchWithURI(uri, null);
-		}
-		catch (e) {
-			Zotero.debug("launchWithURI() not supported -- trying fallback executable");
-			
-			if (Zotero.isWin) {
-				var pref = "fallbackLauncher.windows";
-			}
-			else {
-				var pref = "fallbackLauncher.unix";
-			}
-			var path = Zotero.Prefs.get(pref);
-			
-			var exec = Components.classes["@mozilla.org/file/local;1"]
-						.createInstance(Components.interfaces.nsILocalFile);
-			exec.initWithPath(path);
-			if (!exec.exists()) {
-				throw ("Fallback executable not found -- check extensions.zotero." + pref + " in about:config");
-			}
-			
-			var proc = Components.classes["@mozilla.org/process/util;1"]
-							.createInstance(Components.interfaces.nsIProcess);
-			proc.init(exec);
-			
-			var args = [url];
-			proc.runw(false, args, args.length);
-		}
+		Zotero.debug("ZoteroPane.launchURL() is deprecated -- use Zotero.launchURL()", 2);
+		return Zotero.launchURL(url);
 	}
 	
 	
@@ -4574,10 +4556,10 @@ var ZoteroPane = new function()
 				Zotero.debug("Invalid path", 2);
 				break;
 			}
-			var dir = Zotero.File.getClosestDirectory(file);
+			
+			var dir = yield Zotero.File.getClosestDirectory(file);
 			if (dir) {
-				dir.QueryInterface(Components.interfaces.nsILocalFile);
-				fp.displayDirectory = dir;
+				fp.displayDirectory = Zotero.File.pathToFile(dir);
 			}
 			
 			fp.appendFilters(Components.interfaces.nsIFilePicker.filterAll);

@@ -96,6 +96,32 @@ describe("Zotero.File", function () {
 		});
 	});
 	
+	
+	describe("#getClosestDirectory()", function () {
+		it("should return directory for file that exists", function* () {
+			var tmpDir = yield getTempDirectory();
+			var closest = yield Zotero.File.getClosestDirectory(tmpDir);
+			assert.equal(closest, tmpDir);
+		});
+		
+		it("should return parent directory for missing file", function* () {
+			var tmpDir = yield getTempDirectory();
+			var closest = yield Zotero.File.getClosestDirectory(OS.Path.join(tmpDir, 'a'));
+			assert.equal(closest, tmpDir);
+		});
+		
+		it("should find an existing directory three levels up from a missing file", function* () {
+			var tmpDir = yield getTempDirectory();
+			var closest = yield Zotero.File.getClosestDirectory(OS.Path.join(tmpDir, 'a', 'b', 'c'));
+			assert.equal(closest, tmpDir);
+		});
+		
+		it("should return false for a path that doesn't exist at all", function* () {
+			assert.isFalse(yield Zotero.File.getClosestDirectory('/a/b/c'));
+		});
+	});
+	
+	
 	describe("#copyDirectory()", function () {
 		it("should copy all files within a directory", function* () {
 			var tmpDir = Zotero.getTempDirectory().path;
@@ -160,6 +186,29 @@ describe("Zotero.File", function () {
 			assert.notProperty(files, '.zotero-ft-cache');
 			assert.propertyVal(files, 'a.txt', 'A');
 			assert.propertyVal(files, 'sub/b.txt', 'B');
+		});
+	});
+	
+	
+	describe("#checkFileAccessError()", function () {
+		it("should catch OS.File access-denied errors", function* () {
+			// We can't modify a real OS.File.Error, but we also don't do an instanceof check in
+			// checkFileAccessError, so just set the expected properties.
+			var e = {
+				operation: 'open',
+				becauseAccessDenied: true,
+				path: '/tmp/test'
+			};
+			try {
+				Zotero.File.checkFileAccessError(e, e.path, 'create');
+			}
+			catch (e) {
+				if (e instanceof Zotero.Error) {
+					return;
+				}
+				throw e;
+			}
+			throw new Error("Error not thrown");
 		});
 	});
 })

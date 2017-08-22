@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "เมื่อไม่ใช้งานตัวเลือกนี้ Zotero จะรวม URLs เมื่ออ้างถึงวารสาร นิตยสารและหนังสือพิมพ์เฉพาะกรณีที่บทความนั้นไม่มีเลขหน้าเท่านั้น">
 
 <!ENTITY zotero.preferences.quickCopy.caption "ทำสำเนาอย่างเร็ว">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "รูปแบบส่งออกโดยปริยาย">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "ทำสำเนาเป็น HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "หมายเหตุ: การจัดรูปแบบจะสูญหายไปบน Mac OS X">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "ตั้งค่าที่ตั้งเฉพาะ:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "โดเมน/พาธ">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(เช่น wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "รูปแบบส่งออก">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Language">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "ไม่ใช้การสำเนาแบบเร็วเมื่อลากรายการมากกว่า ">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "ใช้หน้าจอการอ้างอิงแบบคลาสสิก">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "ตัวจัดการรูปแบบ">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "ชื่อเรื่อง">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "แฟ้มและโฟลเดอร์">
 <!ENTITY zotero.preferences.advanced.keys "Shortcuts">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "หาที่ตั้ง">
 <!ENTITY zotero.preferences.locate.locateEngineManager "ตัวจัดการเครื่องมือค้นหาบทความ">
 <!ENTITY zotero.preferences.locate.description "รายละเอียด">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "บันทึกการส่งออกการแก้จุดบกพร่อง">
-<!ENTITY zotero.preferences.debugOutputLogging.message "การส่งออกการแก้จุดบกพร่องสามารถช่วยผู้พัฒนา Zotero ให้รู้ถึงปัญหา การบันทึกแก้จุดบอกพร่องจะทำให้ Zotero ช้าลง ดังนั้นคุณไม่ควรใช้ตัวเลือกนี้เว้นแต่ผู้พัฒนา Zotero จะร้องขอให้ส่งออกการแก้จุดบกพร่อง">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "ลงบันทึกจำนวนบรรทัด">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "ใช้งานได้หลังจากเริ่มโปรแกรมใหม่">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "ดูผลลัพธ์">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "ล้างผลลัพธ์">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "ส่งไปเครื่องบริการของ Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "เปิด about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Open Style Editor">
-<!ENTITY zotero.preferences.openCSLPreview "Open Style Preview">
-<!ENTITY zotero.preferences.openAboutMemory "เปิด about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

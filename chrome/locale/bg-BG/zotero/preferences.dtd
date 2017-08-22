@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Когато тази опция е изключена, Зотеро включва интернет адреса на цитираната статия от списание или вестник, само ако номерата на страниците не са указани.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Бързо копиране">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Изходящ формат по подразбиране:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Копиране в HTML формат">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Внимание: Богатото форматиране на текста ще бъде загубен при Mac OS X.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Настройки специфични за страницата:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Домен/Пътека">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(напр. wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Изходящ формат">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Language">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Бързото копиране се иключва при влачене на повече от">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Get word processor plug-ins…">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Use classic Add Citation dialog">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Style Manager">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Title">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Files and Folders">
 <!ENTITY zotero.preferences.advanced.keys "Shortcuts">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Locate">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Article Lookup Engine Manager">
 <!ENTITY zotero.preferences.locate.description "Description">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Reset Translators…">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Reset Styles…">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Запис на грешките в журнал">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Журнала с грешките може да помогне за разработчитците на Зотеро да диагностицират проблемите. Записа на грешките забавя Зотеро, така че е по-добре да го държите изключен освен ако някой от разработчиците не го поиска.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "редове в журнала">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Остава включен след рестартиране">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Разглежда изведените дани">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Изчиства изведените дани">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Изпраща до сървъра на Зотеро">
-
-<!ENTITY zotero.preferences.openAboutConfig "Open about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Open Style Editor">
-<!ENTITY zotero.preferences.openCSLPreview "Open Style Preview">
-<!ENTITY zotero.preferences.openAboutMemory "Open about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">

@@ -109,13 +109,12 @@
 <!ENTITY zotero.preferences.export.citePaperJournalArticleURL.description "Če ta možnost ni vključena, Zotero vključi URL-je pri citiranju revij in časopisnih člankov le, če članek nima določenega obsega strani.">
 
 <!ENTITY zotero.preferences.quickCopy.caption "Hitro kopiraj">
-<!ENTITY zotero.preferences.quickCopy.defaultOutputFormat "Privzeta izhodna oblika:">
+<!ENTITY zotero.preferences.quickCopy.defaultFormat "Default Format:">
 <!ENTITY zotero.preferences.quickCopy.copyAsHTML "Kopiraj kot HTML">
-<!ENTITY zotero.preferences.quickCopy.macWarning "Opomba: Oblikovanje besedila bo na Mac OS X izgubljeno.">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.setings "Nastavitve za to mesto:">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath "Domena/pot">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(npr. wikipedia.org)">
-<!ENTITY zotero.preferences.quickCopy.siteEditor.outputFormat "Izhodna oblika">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.domainPath.example "(e.g., wikipedia.org)">
+<!ENTITY zotero.preferences.quickCopy.siteEditor.format "Format">
 <!ENTITY zotero.preferences.quickCopy.siteEditor.locale "Jezik">
 <!ENTITY zotero.preferences.quickCopy.dragLimit "Onemogoči Hitro kopiranje ob vleki več kot">
 
@@ -126,6 +125,8 @@
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins "Pridobi vstavke za urejevalnike besedil ...">
 <!ENTITY zotero.preferences.cite.wordProcessors.getPlugins.url "http://www.zotero.org/support/word_processor_plugin_installation_for_zotero_2.1">
 <!ENTITY zotero.preferences.cite.wordProcessors.useClassicAddCitationDialog "Uporabi klasično pogovorno okno Dodaj citat">
+<!ENTITY zotero.preferences.styleEditor "Style Editor">
+<!ENTITY zotero.preferences.stylePreview "Style Preview">
 
 <!ENTITY zotero.preferences.cite.styles.styleManager "Upravitelj slogov">
 <!ENTITY zotero.preferences.cite.styles.styleManager.title "Naslov">
@@ -174,6 +175,8 @@
 <!ENTITY zotero.preferences.advanced.filesAndFolders "Datoteke in mape">
 <!ENTITY zotero.preferences.advanced.keys "Tipke za bližnjice">
 
+<!ENTITY zotero.preferences.advanced.advancedConfiguration "Advanced Configuration">
+
 <!ENTITY zotero.preferences.prefpane.locate "Lociraj">
 <!ENTITY zotero.preferences.locate.locateEngineManager "Upravitelj pogona iskanja člankov">
 <!ENTITY zotero.preferences.locate.description "Opis">
@@ -205,15 +208,4 @@
 <!ENTITY zotero.preferences.dbMaintenance.resetTranslators "Ponastavi prevajalnike ...">
 <!ENTITY zotero.preferences.dbMaintenance.resetStyles "Ponastavi sloge ...">
 
-<!ENTITY zotero.preferences.debugOutputLogging "Beleženje izhoda razhroščevanja">
-<!ENTITY zotero.preferences.debugOutputLogging.message "Izhod razhroščevanja lahko pomaga razvijalcem Zotera pri diagnostiki težav v Zoteru. Beleženje razhroščevanja upočasni Zotero, zato ga v splošnem pustite onemogočenega, razen če razvijalec Zotera zaprosi za izhod razhroščevanja.">
-<!ENTITY zotero.preferences.debugOutputLogging.linesLogged "zabeleženih vrstic">
-<!ENTITY zotero.preferences.debugOutputLogging.enableAfterRestart "Omogoči po ponovnem zagonu">
-<!ENTITY zotero.preferences.debugOutputLogging.viewOutput "Pokaži izhod">
-<!ENTITY zotero.preferences.debugOutputLogging.clearOutput "Počisti izhod">
-<!ENTITY zotero.preferences.debugOutputLogging.submitToServer "Objavi na strežniku Zotero">
-
-<!ENTITY zotero.preferences.openAboutConfig "Odpri about:config">
-<!ENTITY zotero.preferences.openCSLEdit "Odpri urejevalnik sloga">
-<!ENTITY zotero.preferences.openCSLPreview "Odpri predogled sloga">
-<!ENTITY zotero.preferences.openAboutMemory "Odprite about:memory">
+<!ENTITY zotero.preferences.configEditor "Config Editor">
