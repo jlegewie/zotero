@@ -29,6 +29,9 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/osfile.jsm");
 Components.utils.import("resource://gre/modules/PluralForm.jsm");
+Components.classes["@mozilla.org/net/osfileconstantsservice;1"]
+	.getService(Components.interfaces.nsIOSFileConstantsService)
+	.init();
 
 Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 
@@ -180,6 +183,8 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 				'skipBundledFiles'
 			];
 			opts.filter(opt => options[opt]).forEach(opt => this[opt] = true);
+			
+			this.forceDataDir = options.forceDataDir;
 		}
 		
 		this.mainThread = Services.tm.mainThread;
@@ -286,6 +291,9 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		
 		try {
 			yield Zotero.DataDirectory.init();
+			if (this.restarting) {
+				return;
+			}
 			var dataDir = Zotero.DataDirectory.dir;
 		}
 		catch (e) {
@@ -305,7 +313,9 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 					Zotero.logError(e);
 				}
 				
-				let previousDir = Zotero.Prefs.get('lastDataDir') || Zotero.Prefs.get('dataDir');
+				let previousDir = Zotero.Prefs.get('lastDataDir')
+					|| Zotero.Prefs.get('dataDir')
+					|| e.dataDir;
 				Zotero.startupError = foundInDefault
 					? Zotero.getString(
 						'dataDir.notFound.defaultFound',
@@ -349,8 +359,10 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 					else {
 						let index = ps.confirmEx(null,
 							Zotero.getString('general.error'),
-							Zotero.startupError + '\n\n' +
-							Zotero.getString('dataDir.previousDir') + ' ' + previousDir,
+							Zotero.startupError
+								+ (previousDir
+									? '\n\n' + Zotero.getString('dataDir.previousDir') + ' ' + previousDir
+									: ''),
 							buttonFlags,
 							Zotero.getString('general.quit'),
 							Zotero.getString('dataDir.useDefaultLocation'),
@@ -378,16 +390,18 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		}
 		
 		if (!Zotero.isConnector) {
-			yield Zotero.DataDirectory.checkForLostLegacy();
-			if (this.restarting) {
-				return;
-			}
-			
-			yield Zotero.DataDirectory.checkForMigration(
-				dataDir, Zotero.DataDirectory.defaultDir
-			);
-			if (this.skipLoading) {
-				return;
+			if (!this.forceDataDir) {
+				yield Zotero.DataDirectory.checkForLostLegacy();
+				if (this.restarting) {
+					return;
+				}
+				
+				yield Zotero.DataDirectory.checkForMigration(
+					dataDir, Zotero.DataDirectory.defaultDir
+				);
+				if (this.skipLoading) {
+					return;
+				}
 			}
 			
 			// Make sure data directory isn't in Dropbox, etc.
@@ -847,6 +861,8 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 			
 			Zotero.Feeds.init();
 			Zotero.addShutdownListener(() => Zotero.Feeds.uninit());
+			
+			Zotero.Schema.schemaUpdatePromise.then(Zotero.purgeDataObjects.bind(Zotero));
 			
 			return true;
 		}
@@ -1520,7 +1536,12 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 				}
 				
 				// Extract a valid language tag
-				locale = locale.match(/^[a-z]{2}(\-[A-Z]{2})?/)[0];
+				try {
+					locale = locale.match(/^[a-z]{2}(\-[A-Z]{2})?/)[0];
+				}
+				catch (e) {
+					throw new Error(`Error parsing locale ${locale}`);
+				}
 				locales = [locale];
 			}
 			
@@ -1533,12 +1554,25 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		catch (e) {
 			Zotero.logError(e);
 			
-			// If there's an error, just skip sorting
-			collator = {
-				compare: function (a, b) {
-					return 0;
-				}
-			};
+			// Fall back to en-US sorting
+			try {
+				Zotero.logError("Falling back to en-US sorting");
+				collator = new Intl.Collator(['en-US'], {
+					ignorePunctuation: true,
+					numeric: true,
+					sensitivity: 'base'
+				});
+			}
+			catch (e) {
+				Zotero.logError(e);
+				
+				// If there's still an error, just skip sorting
+				collator = {
+					compare: function (a, b) {
+						return 0;
+					}
+				};
+			}
 		}
 		
 		// Grab all ASCII punctuation and space at the begining of string
@@ -1987,6 +2021,8 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 	 * Clear entries that no longer exist from various tables
 	 */
 	this.purgeDataObjects = Zotero.Promise.coroutine(function* () {
+		var d = new Date();
+		
 		yield Zotero.DB.executeTransaction(function* () {
 			return Zotero.Creators.purge();
 		});
@@ -2001,6 +2037,8 @@ Services.scriptloader.loadSubScript("resource://zotero/polyfill.js");
 		//yield Zotero.DB.executeTransaction(function* () {
 		//	return Zotero.Relations.purge();
 		//});
+		
+		Zotero.debug("Purged data tables in " + (new Date() - d) + " ms");
 	});
 	
 	

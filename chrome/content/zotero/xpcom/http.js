@@ -58,6 +58,19 @@ Zotero.HTTP = new function() {
 	};
 	this.TimeoutException.prototype = Object.create(Error.prototype);
 
+	this.SecurityException = function (msg, options = {}) {
+		this.message = msg;
+		this.stack = new Error().stack;
+		for (let i in options) {
+			this[i] = options[i];
+		}
+	};
+	this.SecurityException.prototype = Object.create(
+		// Zotero.Error not available in the connector
+		Zotero.Error ? Zotero.Error.prototype : Error.prototype
+	);
+	
+	
 	this.promise = function () {
 		Zotero.debug("Zotero.HTTP.promise() is deprecated -- use Zotero.HTTP.request()", 2);
 		return this.request.apply(this, arguments);
@@ -161,8 +174,13 @@ Zotero.HTTP = new function() {
 			channel.forceAllowThirdPartyCookie = true;
 			
 			// Set charset
+			//
+			// This is the method used in the connector, but as noted there, this parameter is a
+			// legacy of XPCOM functionality (where it could be set on the nsIChannel, which
+			// doesn't seem to work anymore), and we should probably allow responseContentType to
+			// be set instead
 			if (options.responseCharset) {
-				channel.contentCharset = responseCharset;
+				xmlhttp.overrideMimeType(`text/plain; charset=${responseCharset}`);
 			}
 			
 			// Disable caching if requested
@@ -257,6 +275,15 @@ Zotero.HTTP = new function() {
 					msg += ":\n\n" + xmlhttp.responseText;
 				}
 				Zotero.debug(msg, 1);
+				
+				try {
+					_checkSecurity(xmlhttp, channel);
+				}
+				catch (e) {
+					deferred.reject(e);
+					return;
+				}
+				
 				deferred.reject(new Zotero.HTTP.UnexpectedStatusException(xmlhttp, msg));
 			}
 		};
@@ -320,9 +347,9 @@ Zotero.HTTP = new function() {
 		channel.QueryInterface(Components.interfaces.nsIHttpChannelInternal);
 		channel.forceAllowThirdPartyCookie = true;
 		
-		// Set charset
+		// Set charset -- see note in request() above
 		if (responseCharset) {
-			channel.contentCharset = responseCharset;
+			xmlhttp.overrideMimeType(`text/plain; charset=${responseCharset}`);
 		}
 		
 		// Set request headers
@@ -338,7 +365,7 @@ Zotero.HTTP = new function() {
 		var useMethodjit = Components.utils.methodjit;
 		/** @ignore */
 		xmlhttp.onreadystatechange = function() {
-			_stateChange(xmlhttp, onDone, responseCharset);
+			_stateChange(xmlhttp, onDone);
 		};
 		
 		if(cookieSandbox) cookieSandbox.attachToInterfaceRequestor(xmlhttp.getInterface(Components.interfaces.nsIInterfaceRequestor));
@@ -392,9 +419,9 @@ Zotero.HTTP = new function() {
 		channel.QueryInterface(Components.interfaces.nsIHttpChannelInternal);
 		channel.forceAllowThirdPartyCookie = true;
 		
-		// Set charset
+		// Set charset -- see note in request() above
 		if (responseCharset) {
-			channel.contentCharset = responseCharset;
+			xmlhttp.overrideMimeType(`text/plain; charset=${responseCharset}`);
 		}
 		
 		if (headers) {
@@ -422,7 +449,7 @@ Zotero.HTTP = new function() {
 		var useMethodjit = Components.utils.methodjit;
 		/** @ignore */
 		xmlhttp.onreadystatechange = function() {
-			_stateChange(xmlhttp, onDone, responseCharset);
+			_stateChange(xmlhttp, onDone);
 		};
 		
 		if(cookieSandbox) cookieSandbox.attachToInterfaceRequestor(xmlhttp.getInterface(Components.interfaces.nsIInterfaceRequestor));
@@ -778,20 +805,81 @@ Zotero.HTTP = new function() {
 			.getService(Components.interfaces.nsIIOService).offline;
 	}
 	
+	
+	/**
+	 * Load one or more documents using XMLHttpRequest
+	 *
+	 * This should stay in sync with the equivalent function in the connector
+	 *
+	 * @param {String|String[]} urls URL(s) of documents to load
+	 * @param {Function} processor - Callback to be executed for each document loaded; if function returns
+	 *     a promise, it's waited for before continuing
+	 * @param {Zotero.CookieSandbox} [cookieSandbox] Cookie sandbox object
+	 * @return {Promise<Array>} - A promise for an array of results from the processor runs
+	 */
+	this.processDocuments = async function (urls, processor, cookieSandbox) {
+		// Handle old signature: urls, processor, onDone, onError, dontDelete, cookieSandbox
+		if (arguments.length > 3) {
+			Zotero.debug("Zotero.HTTP.processDocuments() now takes only 3 arguments -- update your code");
+			var onDone = arguments[2];
+			var onError = arguments[3];
+			var cookieSandbox = arguments[5];
+		}
+		
+		if (typeof urls == "string") urls = [urls];
+		var funcs = urls.map(url => () => {
+			return Zotero.HTTP.request(
+				"GET",
+				url,
+				{
+					responseType: 'document'
+				}
+			)
+			.then((xhr) => {
+				var doc = this.wrapDocument(xhr.response, url);
+				return processor(doc, url);
+			});
+		});
+		
+		// Run processes serially
+		// TODO: Add some concurrency?
+		var f;
+		var results = [];
+		while (f = funcs.shift()) {
+			try {
+				results.push(await f());
+			}
+			catch (e) {
+				if (onError) {
+					onError(e);
+				}
+				throw e;
+			}
+		}
+		
+		// Deprecated
+		if (onDone) {
+			onDone();
+		}
+		
+		return results;
+	};
+	
+	
 	/**
 	 * Load one or more documents in a hidden browser
 	 *
 	 * @param {String|String[]} urls URL(s) of documents to load
 	 * @param {Function} processor - Callback to be executed for each document loaded; if function returns
 	 *     a promise, it's waited for before continuing
-	 * @param {Function} done Callback to be executed after all documents have been loaded
-	 * @param {Function} exception Callback to be executed if an exception occurs
+	 * @param {Function} onDone - Callback to be executed after all documents have been loaded
+	 * @param {Function} onError - Callback to be executed if an error occurs
 	 * @param {Boolean} dontDelete Don't delete the hidden browser upon completion; calling function
 	 *                             must call deleteHiddenBrowser itself.
 	 * @param {Zotero.CookieSandbox} [cookieSandbox] Cookie sandbox object
 	 * @return {browser} Hidden browser used for loading
 	 */
-	this.processDocuments = function(urls, processor, done, exception, dontDelete, cookieSandbox) {
+	this.loadDocuments = function (urls, processor, onDone, onError, dontDelete, cookieSandbox) {
 		// (Approximately) how many seconds to wait if the document is left in the loading state and
 		// pageshow is called before we call pageshow with an incomplete document
 		const LOADING_STATE_TIMEOUT = 120;
@@ -808,11 +896,11 @@ Zotero.HTTP = new function() {
 				firedLoadEvent = 0;
 				currentURL++;
 				try {
-					Zotero.debug("Zotero.HTTP.processDocuments: Loading "+url);
+					Zotero.debug("Zotero.HTTP.loadDocuments: Loading " + url);
 					hiddenBrowser.loadURI(url);
 				} catch(e) {
-					if(exception) {
-						exception(e);
+					if (onError) {
+						onError(e);
 						return;
 					} else {
 						if(!dontDelete) Zotero.Browser.deleteHiddenBrowser(hiddenBrowsers);
@@ -821,7 +909,7 @@ Zotero.HTTP = new function() {
 				}
 			} else {
 				if(!dontDelete) Zotero.Browser.deleteHiddenBrowser(hiddenBrowsers);
-				if(done) done();
+				if (onDone) onDone();
 			}
 		};
 		
@@ -842,7 +930,7 @@ Zotero.HTTP = new function() {
 				return;
 			}
 			
-			Zotero.debug("Zotero.HTTP.processDocuments: "+url+" loaded");
+			Zotero.debug("Zotero.HTTP.loadDocuments: " + url + " loaded");
 			hiddenBrowser.removeEventListener("pageshow", onLoad, true);
 			hiddenBrowser.zotero_loaded = true;
 			
@@ -859,8 +947,8 @@ Zotero.HTTP = new function() {
 			if (maybePromise && maybePromise.then) {
 				maybePromise.then(() => doLoad())
 				.catch(e => {
-					if (exception) {
-						exception(e);
+					if (onError) {
+						onError(e);
 					}
 					else {
 						throw e;
@@ -871,8 +959,8 @@ Zotero.HTTP = new function() {
 			
 			try {
 				if (error) {
-					if (exception) {
-						exception(error);
+					if (onError) {
+						onError(error);
 					}
 					else {
 						throw error;
@@ -905,11 +993,10 @@ Zotero.HTTP = new function() {
 	 *
 	 * @param {nsIXMLHttpRequest} xmlhttp XMLHttpRequest whose state just changed
 	 * @param {Function} [callback] Callback for request completion
-	 * @param {String} [responseCharset] Character set to force on the response
 	 * @param {*} [data] Data to be passed back to callback as the second argument
 	 * @private
 	 */
-	function _stateChange(xmlhttp, callback, responseCharset, data) {
+	function _stateChange(xmlhttp, callback, data) {
 		switch (xmlhttp.readyState){
 			// Request not yet made
 			case 1:
@@ -925,13 +1012,53 @@ Zotero.HTTP = new function() {
 			// Download complete
 			case 4:
 				if (callback) {
-					// Override the content charset
-					if (responseCharset) {
-						xmlhttp.channel.contentCharset = responseCharset;
-					}
 					callback(xmlhttp, data);
 				}
 			break;
+		}
+	}
+	
+	function _checkSecurity(xmlhttp, channel) {
+		if (xmlhttp.status != 0 || !channel) {
+			return;
+		}
+		
+		let secInfo = channel.securityInfo;
+		if (secInfo instanceof Ci.nsITransportSecurityInfo) {
+			secInfo.QueryInterface(Ci.nsITransportSecurityInfo);
+			if ((secInfo.securityState & Ci.nsIWebProgressListener.STATE_IS_INSECURE)
+					== Ci.nsIWebProgressListener.STATE_IS_INSECURE) {
+				let url = channel.name;
+				let ios = Components.classes["@mozilla.org/network/io-service;1"]
+					.getService(Components.interfaces.nsIIOService);
+				try {
+					var uri = ios.newURI(url, null, null);
+					var host = uri.host;
+				}
+				catch (e) {
+					Zotero.debug(e);
+				}
+				let kbURL = 'https://www.zotero.org/support/kb/ssl_certificate_error';
+				msg = Zotero.getString('sync.storage.error.webdav.sslCertificateError', host);
+				dialogButtonText = Zotero.getString('general.moreInformation');
+				dialogButtonCallback = function () {
+					let wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+						.getService(Components.interfaces.nsIWindowMediator);
+					let win = wm.getMostRecentWindow("navigator:browser");
+					win.ZoteroPane.loadURI(kbURL, { metaKey: true, shiftKey: true });
+				};
+			}
+			else if ((secInfo.securityState & Ci.nsIWebProgressListener.STATE_IS_BROKEN)
+					== Ci.nsIWebProgressListener.STATE_IS_BROKEN) {
+				msg = Zotero.getString('sync.error.sslConnectionError');
+			}
+			throw new Zotero.HTTP.SecurityException(
+				msg,
+				{
+					dialogButtonText,
+					dialogButtonCallback
+				}
+			);
 		}
 	}
 

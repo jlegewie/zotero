@@ -390,10 +390,12 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 					// If syncing all libraries, mark any that don't exist, are outdated, or are
 					// archived locally for update. Group is added to the library list after downloading.
 					if (!group || group.version < remoteGroupVersions[id] || group.archived) {
+						Zotero.debug(`Marking group ${id} to download`);
 						groupsToDownload.push(id);
 					}
 					// If not outdated, just add to library list
 					else {
+						Zotero.debug(`Adding group library ${group.libraryID} to sync`);
 						libraries.push(group.libraryID);
 					}
 				}
@@ -425,6 +427,8 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 					.filter(id => Zotero.Libraries.get(id).libraryType == 'group')
 					.map(id => Zotero.Groups.getGroupIDFromLibraryID(id))
 			}
+			Zotero.debug("Local groups:");
+			Zotero.debug(localGroups);
 			remotelyMissingGroups = Zotero.Utilities.arrayDiff(localGroups, remoteGroupIDs)
 				.map(id => Zotero.Groups.get(id));
 		}
@@ -450,9 +454,9 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 			//
 			// TODO: Localize
 			for (let group of remotelyMissingGroups) {
-				// Ignore archived groups
+				// Ignore remotely missing archived groups
 				if (group.archived) {
-					groupsToDownload.splice(groupsToDownload.indexOf(group.id), 1);
+					groupsToDownload = groupsToDownload.filter(groupID => groupID != group.id);
 					continue;
 				}
 				
@@ -547,6 +551,8 @@ Zotero.Sync.Runner_Module = function (options = {}) {
 		}
 		
 		// Note: If any non-group library types become archivable, they'll need to be unarchived here.
+		Zotero.debug("Final libraries to sync:");
+		Zotero.debug(libraries);
 		
 		return [...new Set(libraries)];
 	});

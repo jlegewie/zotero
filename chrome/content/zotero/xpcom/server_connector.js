@@ -48,7 +48,6 @@ Zotero.Server.Connector = {
 					case 'L':
 						library = Zotero.Libraries.get(id);
 						editable = library.editable;
-						Zotero.debug("LIB IS " + editable);
 						break;
 					
 					case 'C':
@@ -270,6 +269,12 @@ Zotero.Server.Connector.SavePage.prototype = {
 	 * @param {Function} sendResponseCallback function to send HTTP response
 	 */
 	init: function(url, data, sendResponseCallback) {
+		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
+		if (!library.editable) {
+			Zotero.logError("Can't add item to read-only library " + library.name);
+			return sendResponseCallback(500, "application/json", JSON.stringify({ libraryEditable: false }));
+		}
+		
 		this.sendResponse = sendResponseCallback;
 		Zotero.Server.Connector.Detect.prototype.init.apply(this, [url, data, sendResponseCallback])
 	},
@@ -319,11 +324,7 @@ Zotero.Server.Connector.SavePage.prototype = {
 		var jsonItems = [];
 		translate.setHandler("select", function(obj, item, callback) { return me._selectItems(obj, item, callback) });
 		translate.setHandler("itemDone", function(obj, item, jsonItem) {
-			if(collection) {
-				collection.addItem(item.id);
-			}
 			Zotero.Server.Connector.AttachmentProgressManager.add(jsonItem.attachments);
-			
 			jsonItems.push(jsonItem);
 		});
 		translate.setHandler("attachmentProgress", function(obj, attachment, progress, error) {
@@ -343,7 +344,7 @@ Zotero.Server.Connector.SavePage.prototype = {
 		} else {
 			translate.setTranslator(translators[0]);
 		}
-		translate.translate(libraryID);
+		translate.translate({libraryID, collections: collection ? [collection.id] : false});
 	}
 }
 
@@ -372,11 +373,9 @@ Zotero.Server.Connector.SaveItem.prototype = {
 		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
 		var libraryID = library.libraryID;
 		
-		// If library isn't editable (or directly editable, in the case of My Publications), switch to
-		// My Library if present and editable, and otherwise fail
-		if (!library.editable || library.libraryType == 'publications') {
+		if (!library.editable) {
 			Zotero.logError("Can't add item to read-only library " + library.name);
-			return [500, "application/json", JSON.stringify({libraryEditable: false})];
+			return [500, "application/json", JSON.stringify({ libraryEditable: false })];
 		}
 		
 		var cookieSandbox = data.uri
@@ -461,23 +460,9 @@ Zotero.Server.Connector.SaveSnapshot.prototype = {
 		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
 		var libraryID = library.libraryID;
 		
-		// If library isn't editable (or directly editable, in the case of My Publications), switch to
-		// My Library if present and editable, and otherwise fail
-		if (!library.editable || library.libraryType == 'publications') {
-			let userLibrary = Zotero.Libraries.userLibrary;
-			if (userLibrary && userLibrary.editable) {
-				let zp = Zotero.getActiveZoteroPane();
-				if (zp) {
-					yield zp.collectionsView.selectLibrary(userLibrary.id);
-				}
-				library = userLibrary;
-				libraryID = userLibrary.id;
-				collection = null;
-			}
-			else {
-				Zotero.logError("Can't add item to read-only library " + library.name);
-				return 500;
-			}
+		if (!library.editable) {
+			Zotero.logError("Can't add item to read-only library " + library.name);
+			return [500, "application/json", JSON.stringify({ libraryEditable: false })];
 		}
 		
 		// determine whether snapshot can be saved
@@ -522,7 +507,7 @@ Zotero.Server.Connector.SaveSnapshot.prototype = {
 		}
 		else {
 			let deferred = Zotero.Promise.defer();
-			Zotero.HTTP.processDocuments(
+			Zotero.HTTP.loadDocuments(
 				["zotero://connector/" + encodeURIComponent(data.url)],
 				Zotero.Promise.coroutine(function* (doc) {
 					delete Zotero.Server.Connector.Data[data.url];
@@ -644,11 +629,14 @@ Zotero.Server.Connector.Import.prototype = {
 		}
 		translate.setTranslator(translators[0]);
 		var { library, collection, editable } = Zotero.Server.Connector.getSaveTarget();
-		let arg = {};
-		if (editable) {
-			arg = {libraryID: library.libraryID, collections: [collection.id]};
+		if (!library.editable) {
+			Zotero.logError("Can't import into read-only library " + library.name);
+			return [500, "application/json", JSON.stringify({ libraryEditable: false })];
 		}
-		let items = yield translate.translate(arg);
+		let items = yield translate.translate({
+			libraryID: library.libraryID,
+			collections: collection ? [collection.id] : null
+		});
 		return [201, "application/json", JSON.stringify(items)];
 	})
 }

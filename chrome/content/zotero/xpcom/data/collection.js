@@ -80,7 +80,8 @@ Zotero.defineProperty(Zotero.Collection.prototype, 'parent', {
 	set: function(val) {
 		Zotero.debug("WARNING: Zotero.Collection.prototype.parent has been deprecated -- use .parentID or .parentKey", 2);
 		this.parentID = val;
-	}
+	},
+	enumerable: false
 });
 
 Zotero.defineProperty(Zotero.Collection.prototype, 'treeViewID', {
@@ -91,8 +92,9 @@ Zotero.defineProperty(Zotero.Collection.prototype, 'treeViewID', {
 
 Zotero.defineProperty(Zotero.Collection.prototype, 'treeViewImage', {
 	get: function () {
+		// Keep in sync with collectionTreeView::getImageSrc()
 		if (Zotero.isMac) {
-			return "chrome://zotero-platform/content/treesource-collection.png";
+			return `chrome://zotero-platform/content/treesource-collection${Zotero.hiDPISuffix}.png`;
 		}
 		return "chrome://zotero/skin/treesource-collection" + Zotero.hiDPISuffix + ".png";
 	}
@@ -427,7 +429,7 @@ Zotero.Collection.prototype.removeItems = Zotero.Promise.coroutine(function* (it
 		return;
 	}
 	
-	var current = this.getChildItems(true);
+	var current = this.getChildItems(true, true);
 	
 	Zotero.DB.requireTransaction();
 	for (let i=0; i<itemIDs.length; i++) {
@@ -569,6 +571,7 @@ Zotero.Collection.prototype._eraseData = Zotero.Promise.coroutine(function* (env
 	
 	var descendents = this.getDescendents(false, null, true);
 	var items = [];
+	var libraryHasTrash = Zotero.Libraries.hasTrash(this.libraryID);
 	
 	var del = [];
 	var itemsToUpdate = [];
@@ -586,19 +589,23 @@ Zotero.Collection.prototype._eraseData = Zotero.Promise.coroutine(function* (env
 		}
 		// Descendent items
 		else {
-			// Delete items from DB
+			// Trash/delete items
 			if (env.options.deleteItems) {
 				del.push(descendents[i].id);
 			}
-			else {
+			
+			// If item isn't being removed or is just moving to the trash, mark for update
+			if (!env.options.deleteItems || libraryHasTrash) {
 				itemsToUpdate.push(descendents[i].id);
 			}
 		}
 	}
 	if (del.length) {
-		if (Zotero.Libraries.hasTrash(this.libraryID)) {
+		if (libraryHasTrash) {
 			yield this.ChildObjects.trash(del);
-		} else {
+		}
+		// If library doesn't have trash, just erase
+		else {
 			Zotero.debug(Zotero.Libraries.getName(this.libraryID) + " library does not have trash. "
 				+ this.ChildObjects._ZDO_Objects + " will be erased");
 			let options = {};
@@ -638,7 +645,7 @@ Zotero.Collection.prototype._eraseData = Zotero.Promise.coroutine(function* (env
 	env.deletedObjectIDs = collections;
 	
 	// Update collection cache for descendant items
-	if (!env.options.deleteItems) {
+	if (itemsToUpdate.length) {
 		let deletedCollections = new Set(env.deletedObjectIDs);
 		itemsToUpdate.forEach(itemID => {
 			let item = Zotero.Items.get(itemID);

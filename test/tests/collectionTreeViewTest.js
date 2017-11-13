@@ -62,6 +62,14 @@ describe("Zotero.CollectionTreeView", function() {
 			assert.isTrue(cv.isContainerOpen(group1Row));
 			assert.isFalse(cv.isContainerOpen(group2Row));
 		});
+		
+		it("should update associated item tree view", function* () {
+			var collection = yield createDataObject('collection');
+			var item = yield createDataObject('item', { collections: [collection.id] });
+			yield cv.reload();
+			yield cv.selectCollection(collection.id);
+			yield cv.selectItem(item.id);
+		});
 	});
 	
 	describe("collapse/expand", function () {
@@ -473,8 +481,18 @@ describe("Zotero.CollectionTreeView", function() {
 			yield win.ZoteroPane.deleteSelectedCollection();
 			assert.isFalse(cv.getRowIndexByID(id))
 		})
-		
-	})
+	});
+	
+	describe("#selectItem()", function () {
+		it("should switch to library root if item isn't in collection", async function () {
+			var item = await createDataObject('item');
+			var collection = await createDataObject('collection');
+			await cv.selectItem(item.id);
+			await waitForItemsLoad(win);
+			assert.equal(cv.selection.currentIndex, 0);
+			assert.sameMembers(zp.itemsView.getSelectedItems(), [item]);
+		});
+	});
 	
 	describe("#drop()", function () {
 		/**
@@ -620,6 +638,13 @@ describe("Zotero.CollectionTreeView", function() {
 			
 			describe("My Publications", function () {
 				it("should add an item to My Publications", function* () {
+					// Remove other items in My Publications
+					var s = new Zotero.Search();
+					s.addCondition('libraryID', 'is', Zotero.Libraries.userLibraryID);
+					s.addCondition('publications', 'true');
+					var ids = yield s.search();
+					yield Zotero.Items.erase(ids);
+					
 					var item = yield createDataObject('item', false, { skipSelect: true });
 					var libraryID = item.libraryID;
 					

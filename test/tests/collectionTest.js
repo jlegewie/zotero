@@ -53,6 +53,14 @@ describe("Zotero.Collection", function() {
 			yield collection.eraseTx();
 			assert.lengthOf(item.getCollections(), 0);
 		});
+		
+		it("should clear collection from item cache in deleteItems mode", function* () {
+			var collection = yield createDataObject('collection');
+			var item = yield createDataObject('item', { collections: [collection.id] });
+			assert.lengthOf(item.getCollections(), 1);
+			yield collection.eraseTx({ deleteItems: true });
+			assert.lengthOf(item.getCollections(), 0);
+		});
 	})
 	
 	describe("#version", function () {
@@ -243,7 +251,13 @@ describe("Zotero.Collection", function() {
 			var item = yield createDataObject('item', { collections: [ col.id ] });
 			assert.lengthOf(col.getChildItems(), 1);
 			yield item.erase();
-			Zotero.debug(col.getChildItems());
+			assert.lengthOf(col.getChildItems(), 0);
+		});
+		
+		it("should not include items emptied from trash", function* () {
+			var col = yield createDataObject('collection');
+			var item = yield createDataObject('item', { collections: [ col.id ], deleted: true });
+			yield item.erase();
 			assert.lengthOf(col.getChildItems(), 0);
 		});
 	})

@@ -137,7 +137,7 @@ var ZoteroItemPane = new function() {
 					
 					var icon = document.createElement('image');
 					icon.className = "zotero-box-icon";
-					icon.setAttribute('src','chrome://zotero/skin/treeitem-note.png');
+					icon.setAttribute('src', `chrome://zotero/skin/treeitem-note${Zotero.hiDPISuffix}.png`);
 					
 					var label = document.createElement('label');
 					label.className = "zotero-box-label";
@@ -321,30 +321,18 @@ var ZoteroItemPane = new function() {
 		ZoteroItemPane.setTranslateButton();
 	};
 	
-		
-	this.setToggleReadLabel = function() {
-		var markRead = false;
-		var items = ZoteroPane_Local.itemsView.getSelectedItems();
-		for (let item of items) {
-			if (!item.isRead) {
-				markRead = true;
-				break;
-			}
-		}
+	
+	this.setReadLabel = function (isRead) {
 		var elem = document.getElementById('zotero-feed-item-toggleRead-button');
-		if (markRead) {
-			var label = Zotero.getString('pane.item.markAsRead');
-		} else {
-			label = Zotero.getString('pane.item.markAsUnread');
-		}
+		var label = Zotero.getString('pane.item.' + (isRead ? 'markAsUnread' : 'markAsRead'));
 		elem.setAttribute('label', label);
 
 		var key = Zotero.Keys.getKeyForCommand('toggleRead');
 		var tooltip = label + (Zotero.rtl ? ' \u202B' : ' ') + '(' + key + ')'
 		elem.setAttribute('tooltiptext', tooltip);
 	};
-
-
+	
+	
 	function _updateNoteCount() {
 		var c = _notesList.childNodes.length;
 		

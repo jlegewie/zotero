@@ -86,7 +86,7 @@ Zotero.Translate.Sandbox = {
 				&& translate.translator[0].configOptions
 				&& translate.translator[0].configOptions.async;
 			
-			var run = function (resolve) {
+			var run = async function (async) {
 				Zotero.debug("Translate: Saving item");
 				
 				// warn if itemDone called after translation completed
@@ -94,7 +94,16 @@ Zotero.Translate.Sandbox = {
 					Zotero.debug("Translate: WARNING: Zotero.Item#complete() called after Zotero.done(); please fix your code", 2);
 				}
 					
-				const allowedObjects = ["complete", "attachments", "seeAlso", "creators", "tags", "notes"];
+				const allowedObjects = [
+					"complete",
+					"attachments",
+					"creators",
+					"tags",
+					"notes",
+					"relations",
+					// Is this still needed?
+					"seeAlso"
+				];
 				
 				// Create a new object here, so that we strip the "complete" property
 				var newItem = {};
@@ -143,7 +152,7 @@ Zotero.Translate.Sandbox = {
 				if(translate._libraryID === false || translate._parentTranslator) {
 					translate.newItems.push(item);
 					if(translate._parentTranslator && Zotero.isFx && !Zotero.isBookmarklet) {
-						// Copy object so it is accessible to child translator
+						// Copy object so it is accessible to parent translator
 						item = translate._sandboxManager.copyObject(item);
 						item.complete = oldItem.complete;
 					}
@@ -207,12 +216,9 @@ Zotero.Translate.Sandbox = {
 				
 				// For synchronous import (when Promise isn't available in the sandbox or the do*
 				// function doesn't use it) and web translators, queue saves
-				if (!resolve || !asyncTranslator) {
+				if (!async || !asyncTranslator) {
 					Zotero.debug("Translate: Saving via queue");
 					translate.saveQueue.push(item);
-					if (resolve) {
-						resolve();
-					}
 				}
 				// For async import, save items immediately
 				else {
@@ -231,11 +237,9 @@ Zotero.Translate.Sandbox = {
 			
 			return new translate._sandboxManager.sandbox.Promise(function (resolve, reject) {
 				try {
-					let maybePromise = run(resolve);
-					if (maybePromise) {
-						maybePromise
-						.then(resolve)
-						.catch(function (e) {
+					run(true).then(
+						resolve,
+						function (e) {
 							// Fix wrapping error from sandbox when error is thrown from _saveItems()
 							if (Zotero.isFx) {
 								reject(translate._sandboxManager.copyObject(e));
@@ -243,8 +247,8 @@ Zotero.Translate.Sandbox = {
 							else {
 								reject(e);
 							}
-						});
-					}
+						}
+					);
 				}
 				catch (e) {
 					reject(e);
@@ -1097,7 +1101,9 @@ Zotero.Translate.Base.prototype = {
 			
 			var handlers = this._handlers[type].slice();
 			for(var i=0, n=handlers.length; i<n; i++) {
-				Zotero.debug("Translate: Running handler "+i+" for "+type, 5);
+				if (type != 'debug') {
+					Zotero.debug(`Translate: Running handler ${i} for ${type}`, 5);
+				}
 				try {
 					returnValue = handlers[i].apply(null, args);
 				} catch(e) {
@@ -2187,7 +2193,7 @@ Zotero.Translate.Web.prototype._translateServerComplete = function(statusCode, r
 /**
  * Overload complete to report translation failure
  */
-Zotero.Translate.Web.prototype.complete = function(returnValue, error) {
+Zotero.Translate.Web.prototype.complete = async function(returnValue, error) {
 	// call super
 	var oldState = this._currentState;
 	var errorString = Zotero.Translate.Base.prototype.complete.apply(this, [returnValue, error]);
@@ -2198,30 +2204,24 @@ Zotero.Translate.Web.prototype.complete = function(returnValue, error) {
 	} else {
 		promise = Zotero.Promise.resolve(Zotero.Prefs.get("reportTranslationFailure"));
 	}
-	
-	return promise.then(function(reportTranslationFailure) {
-		// Report translation failure if we failed
-		if(oldState == "translate" && errorString && !this._parentTranslator && this.translator.length
-			&& this.translator[0].inRepository && reportTranslationFailure) {
-			// Don't report failure if in private browsing mode
-			if(Zotero.isFx && !Zotero.isBookmarklet && !Zotero.isStandalone && Components.classes["@mozilla.org/privatebrowsing;1"]) {
-				var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
-							.getService(Components.interfaces.nsIPrivateBrowsingService);
-				if (pbs.privateBrowsingEnabled) {
-					return;
-				}
-			}
-			
-			var translator = this.translator[0];
-			return Zotero.getSystemInfo().then(function(info) {
-				var postBody = "id=" + encodeURIComponent(translator.translatorID) +
-							   "&lastUpdated=" + encodeURIComponent(translator.lastUpdated) +
-							   "&diagnostic=" + encodeURIComponent(info) +
-							   "&errorData=" + encodeURIComponent(errorString);
-				return Zotero.HTTP.doPost(ZOTERO_CONFIG.REPOSITORY_URL + "report", postBody);
-			});
-		}	
-	}.bind(this));
+	var reportTranslationFailure = await promise;
+	// Report translation failure if we failed
+	if(oldState == "translate" && errorString && !this._parentTranslator && this.translator.length
+		&& this.translator[0].inRepository && reportTranslationFailure) {
+		// Don't report failure if in private browsing mode
+		if (Zotero.isConnector && await Zotero.Connector_Browser.isIncognito()) {
+			return
+		}
+		
+		var translator = this.translator[0];
+		var info = await Zotero.getSystemInfo();
+		
+		var postBody = "id=" + encodeURIComponent(translator.translatorID) +
+					   "&lastUpdated=" + encodeURIComponent(translator.lastUpdated) +
+					   "&diagnostic=" + encodeURIComponent(info) +
+					   "&errorData=" + encodeURIComponent(errorString);
+		return Zotero.HTTP.doPost(ZOTERO_CONFIG.REPOSITORY_URL + "report", postBody);
+	}
 }
 
 /**
@@ -2560,6 +2560,37 @@ Zotero.Translate.Search.prototype.setCookieSandbox = Zotero.Translate.Web.protot
  */
 Zotero.Translate.Search.prototype.setSearch = function(search) {
 	this.search = search;
+}
+
+/**
+ * Set an identifier to use for searching
+ *
+ * @param {Object} identifier - An object with 'DOI', 'ISBN', or 'PMID'
+ */
+Zotero.Translate.Search.prototype.setIdentifier = function (identifier) {
+	var search;
+	if (identifier.DOI) {
+		search = {
+			itemType: "journalArticle",
+			DOI: identifier.DOI
+		};
+	}
+	else if (identifier.ISBN) {
+		search = {
+			itemType: "book",
+			ISBN: identifier.ISBN
+		};
+	}
+	else if (identifier.PMID) {
+		search = {
+			itemType: "journalArticle",
+			contextObject: "rft_id=info:pmid/" + identifier.PMID
+		};
+	}
+	else {
+		throw new Error("Unrecognized identifier");
+	}
+	this.setSearch(search);
 }
 
 /**

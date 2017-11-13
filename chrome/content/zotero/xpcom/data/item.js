@@ -40,12 +40,6 @@ Zotero.Item = function(itemTypeOrID) {
 	this._itemTypeID = null;
 	this._firstCreator = null;
 	this._sortCreator = null;
-	this._numNotes = null;
-	this._numNotesTrashed = null;
-	this._numNotesEmbedded = null;
-	this._numNotesEmbeddedTrashed = null;
-	this._numAttachments = null;
-	this._numAttachmentsTrashed = null;
 	this._attachmentCharset = null;
 	this._attachmentLinkMode = null;
 	this._attachmentContentType = null;
@@ -111,7 +105,8 @@ Zotero.defineProperty(Zotero.Item.prototype, 'itemID', {
 	get: function() {
 		Zotero.debug("Item.itemID is deprecated -- use Item.id");
 		return this._id;
-	}
+	},
+	enumerable: false
 });
 Zotero.defineProperty(Zotero.Item.prototype, 'libraryID', {
 	get: function() { return this._libraryID; },
@@ -341,12 +336,6 @@ Zotero.Item.prototype._parseRowData = function(row) {
 			
 			// Integer or 0
 			case 'version':
-			case 'numNotes':
-			case 'numNotesTrashed':
-			case 'numNotesEmbedded':
-			case 'numNotesEmbeddedTrashed':
-			case 'numAttachments':
-			case 'numAttachmentsTrashed':
 				val = val ? parseInt(val) : 0;
 				break;
 			
@@ -361,7 +350,10 @@ Zotero.Item.prototype._parseRowData = function(row) {
 				break;
 			
 			case 'attachmentLinkMode':
-				val = val !== null ? parseInt(val) : false;
+				val = val !== null
+					? parseInt(val)
+					// Shouldn't happen
+					: Zotero.Attachments.LINK_MODE_IMPORTED_URL;
 				break;
 			
 			case 'attachmentPath':
@@ -1385,7 +1377,9 @@ Zotero.Item.prototype._saveData = Zotero.Promise.coroutine(function* (env) {
 	
 	// Parent item (DB update is done below after collection removals)
 	var parentItemKey = this.parentKey;
-	var parentItemID = this.ObjectsClass.getIDFromLibraryAndKey(this.libraryID, parentItemKey) || null;
+	var parentItemID = parentItemKey
+		? (this.ObjectsClass.getIDFromLibraryAndKey(this.libraryID, parentItemKey) || null)
+		: null;
 	if (this._changed.parentKey) {
 		if (isNew) {
 			if (!parentItemID) {
@@ -1870,39 +1864,6 @@ Zotero.Item.prototype.setSourceKey = function(sourceItemKey) {
 // Methods dealing with note items
 //
 ////////////////////////////////////////////////////////
-Zotero.Item.prototype.incrementNumNotes = function () {
-	this._numNotes++;
-}
-
-Zotero.Item.prototype.incrementNumNotesTrashed = function () {
-	this._numNotesTrashed++;
-}
-
-Zotero.Item.prototype.incrementNumNotesEmbedded = function () {
-	this._numNotesEmbedded++;
-}
-
-Zotero.Item.prototype.incrementNumNotesTrashed = function () {
-	this._numNotesEmbeddedTrashed++;
-}
-
-Zotero.Item.prototype.decrementNumNotes = function () {
-	this._numNotes--;
-}
-
-Zotero.Item.prototype.decrementNumNotesTrashed = function () {
-	this._numNotesTrashed--;
-}
-
-Zotero.Item.prototype.decrementNumNotesEmbedded = function () {
-	this._numNotesEmbedded--;
-}
-
-Zotero.Item.prototype.decrementNumNotesTrashed = function () {
-	this._numNotesEmbeddedTrashed--;
-}
-
-
 /**
 * Determine if an item is a note
 **/
@@ -1929,20 +1890,15 @@ Zotero.Item.prototype.updateNote = function(text) {
  * @return	{Integer}
  */
 Zotero.Item.prototype.numNotes = function(includeTrashed, includeEmbedded) {
-	if (this.isNote()) {
-		throw ("numNotes() cannot be called on items of type 'note'");
+	this._requireData('childItems');
+	var notes = Zotero.Items.get(this.getNotes(includeTrashed));
+	var num = notes.length;
+	if (includeEmbedded) {
+		// Include embedded attachment notes that aren't empty
+		num += Zotero.Items.get(this.getAttachments(includeTrashed))
+			.filter(x => x.getNote() !== '').length;
 	}
-	var cacheKey = '_numNotes';
-	if (includeTrashed && includeEmbedded) {
-		return this[cacheKey] + this[cacheKey + "EmbeddedTrashed"];
-	}
-	else if (includeTrashed) {
-		return this[cacheKey] + this[cacheKey + "Trashed"];
-	}
-	else if (includeEmbedded) {
-		return this[cacheKey] + this[cacheKey + "Embedded"];
-	}
-	return this[cacheKey];
+	return num;
 }
 
 
@@ -2153,16 +2109,9 @@ Zotero.Item.prototype.isFileAttachment = function() {
  * @param	{Boolean}	includeTrashed		Include trashed child items in count
  * @return	<Integer>
  */
-Zotero.Item.prototype.numAttachments = function(includeTrashed) {
-	if (this.isAttachment()) {
-		throw ("numAttachments() cannot be called on attachment items");
-	}
-	
-	var cacheKey = '_numAttachments';
-	if (includeTrashed) {
-		return this[cacheKey] + this[cacheKey + "Trashed"];
-	}
-	return this[cacheKey];
+Zotero.Item.prototype.numAttachments = function (includeTrashed) {
+	this._requireData('childItems');
+	return this.getAttachments(includeTrashed).length;
 }
 
 
@@ -2242,13 +2191,21 @@ Zotero.Item.prototype.getFilePath = function () {
 	//
 	// These should only exist if they weren't converted in the 80 DB upgrade step because
 	// the file couldn't be found.
-	if (Zotero.isMac && path.startsWith('AAAA')) {
+	if (path.startsWith('AAAA')) {
+		// These can only be resolved on Macs
+		if (!Zotero.isMac) {
+			Zotero.debug(`Can't resolve old-style attachment path '${path}' on non-Mac platform`);
+			this._updateAttachmentStates(false);
+			return false;
+		}
+		
 		let file = Components.classes["@mozilla.org/file/local;1"]
 			.createInstance(Components.interfaces.nsILocalFile);
 		try {
 			file.persistentDescriptor = path;
 		}
 		catch (e) {
+			Zotero.debug(`Can't resolve old-style attachment path '${path}'`);
 			this._updateAttachmentStates(false);
 			return false;
 		}
@@ -2256,7 +2213,7 @@ Zotero.Item.prototype.getFilePath = function () {
 		// If valid, convert this to a regular string in the background
 		Zotero.DB.queryAsync(
 			"UPDATE itemAttachments SET path=? WHERE itemID=?",
-			[file.leafName, this._id]
+			[file.path, this._id]
 		);
 		
 		return file.path;
@@ -2459,14 +2416,18 @@ Zotero.Item.prototype.fileExistsCached = function () {
 
 
 
-/*
+/**
  * Rename file associated with an attachment
  *
- * -1   		Destination file exists -- use _force_ to overwrite
- * -2		Error renaming
- * false		Attachment file not found
+ * @param {String} newName
+ * @param {Boolean} [overwrite=false] - Overwrite file if one exists
+ * @param {Boolean} [unique=false] - Add suffix to create unique filename if necessary
+ * @return {Number|false} -- true - Rename successful
+ *                           -1 - Destination file exists; use _force_ to overwrite
+ *                           -2 - Error renaming
+ *                           false - Attachment file not found
  */
-Zotero.Item.prototype.renameAttachmentFile = Zotero.Promise.coroutine(function* (newName, overwrite) {
+Zotero.Item.prototype.renameAttachmentFile = Zotero.Promise.coroutine(function* (newName, overwrite=false, unique=false) {
 	var origPath = yield this.getFilePathAsync();
 	if (!origPath) {
 		Zotero.debug("Attachment file not found in renameAttachmentFile()", 2);
@@ -2485,21 +2446,57 @@ Zotero.Item.prototype.renameAttachmentFile = Zotero.Promise.coroutine(function* 
 			return true;
 		}
 		
-		var destPath = OS.Path.join(OS.Path.dirname(origPath), newName);
+		var parentDir = OS.Path.dirname(origPath);
+		var destPath = OS.Path.join(parentDir, newName);
 		var destName = OS.Path.basename(destPath);
+		// Get root + extension, if there is one
+		var pos = destName.lastIndexOf('.');
+		if (pos > 0) {
+			var root = destName.substr(0, pos);
+			var ext = destName.substr(pos + 1);
+		}
+		else {
+			var root = destName;
+		}
 		
 		// Update mod time and clear hash so the file syncs
 		// TODO: use an integer counter instead of mod time for change detection
 		// Update mod time first, because it may fail for read-only files on Windows
 		yield OS.File.setDates(origPath, null, null);
-		var result = yield OS.File.move(origPath, destPath, { noOverwrite: !overwrite })
-		// If no overwriting and file exists, return -1
-		.catch(OS.File.Error, function (e) {
-			if (e.becauseExists) {
-				return -1;
+		var result;
+		var incr = 0;
+		while (true) {
+			// If filename already exists, add a numeric suffix to the end of the root, before
+			// the extension if there is one
+			if (incr) {
+				if (ext) {
+					destName = root + ' ' + (incr + 1) + '.' + ext;
+				}
+				else {
+					destName = root + ' ' + (incr + 1);
+				}
+				destPath = OS.Path.join(parentDir, destName);
 			}
-			throw e;
-		});
+			
+			try {
+				result = yield OS.File.move(origPath, destPath, { noOverwrite: !overwrite })
+			}
+			catch (e) {
+				if (e instanceof OS.File.Error) {
+					if (e.becauseExists) {
+						// Increment number to create unique suffix
+						if (unique) {
+							incr++;
+							continue;
+						}
+						// If no overwriting or making unique and file exists, return -1
+						return -1;
+					}
+				}
+				throw e;
+			}
+			break;
+		}
 		if (result) {
 			return result;
 		}
@@ -2599,7 +2596,17 @@ Zotero.Item.prototype.relinkAttachmentFile = Zotero.Promise.coroutine(function* 
 		// Rename file to filtered name if necessary
 		if (fileName != newName) {
 			Zotero.debug("Renaming file '" + fileName + "' to '" + newName + "'");
-			yield OS.File.move(path, newPath, { noOverwrite: true });
+			try {
+				yield OS.File.move(path, newPath, { noOverwrite: true });
+			}
+			catch (e) {
+				if (e instanceof OS.File.Error && e.becauseExists && fileName.normalize() == newName) {
+					// Ignore normalization differences that the filesystem ignores
+				}
+				else {
+					throw e;
+				}
+			}
 		}
 	}
 	
@@ -2727,7 +2734,8 @@ Zotero.defineProperty(Zotero.Item.prototype, 'attachmentMIMEType', {
 	get: function() {
 		Zotero.debug(".attachmentMIMEType deprecated -- use .attachmentContentType");
 		return this.attachmentContentType;
-	}
+	},
+	enumerable: false
 });
 
 /**
@@ -3552,7 +3560,7 @@ Zotero.Item.prototype.setCollections = function (collectionIDsOrKeys) {
 		var id = this.ContainerObjectsClass.getIDFromLibraryAndKey(this.libraryID, val);
 		if (!id) {
 			let e = new Error("Collection " + val + " not found for item " + this.libraryKey);
-			e.name = "ZoteroObjectNotFoundError";
+			e.name = "ZoteroMissingObjectError";
 			throw e;
 		}
 		return id;
@@ -4019,13 +4027,13 @@ Zotero.Item.prototype._eraseData = Zotero.Promise.coroutine(function* (env) {
 		? (yield this.ObjectsClass.getByLibraryAndKeyAsync(this.libraryID, parentItem))
 		: null;
 	
-	if (parentItem) {
+	if (parentItem && !env.options.skipParentRefresh) {
 		Zotero.Notifier.queue('refresh', 'item', parentItem.id);
 	}
 	
 	// // Delete associated attachment files
 	if (this.isAttachment()) {
-		let linkMode = this.getAttachmentLinkMode();
+		let linkMode = this.attachmentLinkMode;
 		// If link only, nothing to delete
 		if (linkMode != Zotero.Attachments.LINK_MODE_LINKED_URL) {
 			try {
@@ -4052,7 +4060,9 @@ Zotero.Item.prototype._eraseData = Zotero.Promise.coroutine(function* (env) {
 		for (let i=0; i<toDelete.length; i++) {
 			let obj = yield this.ObjectsClass.getAsync(toDelete[i]);
 			// Copy all options other than 'tx', which would cause a deadlock
-			let options = {};
+			let options = {
+				skipParentRefresh: true
+			};
 			Object.assign(options, env.options);
 			delete options.tx;
 			yield obj.erase(options);
@@ -4076,7 +4086,7 @@ Zotero.Item.prototype._eraseData = Zotero.Promise.coroutine(function* (env) {
 	
 	yield Zotero.DB.queryAsync('DELETE FROM items WHERE itemID=?', this.id);
 	
-	if (parentItem) {
+	if (parentItem && !env.options.skipParentRefresh) {
 		yield parentItem.reload(['primaryData', 'childItems'], true);
 		parentItem.clearBestAttachmentState();
 	}

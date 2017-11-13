@@ -52,33 +52,6 @@ Zotero.Items = function() {
 				deleted: "DI.itemID IS NOT NULL AS deleted",
 				inPublications: "PI.itemID IS NOT NULL AS inPublications",
 				
-				numNotes: "(SELECT COUNT(*) FROM itemNotes INo "
-					+ "WHERE parentItemID=O.itemID AND "
-					+ "INo.itemID NOT IN (SELECT itemID FROM deletedItems)) AS numNotes",
-				
-				numNotesTrashed: "(SELECT COUNT(*) FROM itemNotes INo "
-					+ "WHERE parentItemID=O.itemID AND "
-					+ "INo.itemID IN (SELECT itemID FROM deletedItems)) AS numNotesTrashed",
-				
-				numNotesEmbedded: "(SELECT COUNT(*) FROM itemAttachments IA "
-					+ "JOIN itemNotes USING (itemID) "
-					+ "WHERE IA.parentItemID=O.itemID AND "
-					+ "note!='' AND note!='" + Zotero.Notes.defaultNote + "' AND "
-					+ "IA.itemID NOT IN (SELECT itemID FROM deletedItems)) AS numNotesEmbedded",
-				
-				numNotesEmbeddedTrashed: "(SELECT COUNT(*) FROM itemAttachments IA "
-					+ "JOIN itemNotes USING (itemID) "
-					+ "WHERE IA.parentItemID=O.itemID AND "
-					+ "note!='' AND note!='" + Zotero.Notes.defaultNote + "' AND "
-					+ "IA.itemID IN (SELECT itemID FROM deletedItems)) "
-					+ "AS numNotesEmbeddedTrashed",
-				
-				numAttachments: "(SELECT COUNT(*) FROM itemAttachments IA WHERE parentItemID=O.itemID AND "
-					+ "IA.itemID NOT IN (SELECT itemID FROM deletedItems)) AS numAttachments",
-				
-				numAttachmentsTrashed: "(SELECT COUNT(*) FROM itemAttachments IA WHERE parentItemID=O.itemID AND "
-					+ "IA.itemID IN (SELECT itemID FROM deletedItems)) AS numAttachmentsTrashed",
-				
 				parentID: "(CASE O.itemTypeID WHEN 14 THEN IAP.itemID WHEN 1 THEN INoP.itemID END) AS parentID",
 				parentKey: "(CASE O.itemTypeID WHEN 14 THEN IAP.key WHEN 1 THEN INoP.key END) AS parentKey",
 				
@@ -360,6 +333,9 @@ Zotero.Items = function() {
 			Zotero.debug("Fixing incorrect creator indexes for item " + item.libraryKey
 				+ " (" + numCreators + ", " + maxOrderIndex + ")", 2);
 			var i = numCreators;
+			if (!item._changed.creators) {
+				item._changed.creators = {};
+			}
 			while (i <= maxOrderIndex) {
 				item._changed.creators[i] = true;
 				i++;
@@ -896,39 +872,70 @@ Zotero.Items = function() {
 	
 	/**
 	 * @param {Integer} libraryID - Library to delete from
-	 * @param {Integer} [days] - Only delete items deleted more than this many days ago
-	 * @param {Integer} [limit]
+	 * @param {Object} [options]
+	 * @param {Function} [options.onProgress] - fn(progress, progressMax)
+	 * @param {Integer} [options.days] - Only delete items deleted more than this many days ago
+	 * @param {Integer} [options.limit] - Number of items to delete
 	 */
-	this.emptyTrash = Zotero.Promise.coroutine(function* (libraryID, days, limit) {
+	this.emptyTrash = async function (libraryID, options = {}) {
+		if (arguments.length > 2 || typeof arguments[1] == 'number') {
+			Zotero.warn("Zotero.Items.emptyTrash() has changed -- update your code");
+			options.days = arguments[1];
+			options.limit = arguments[2];
+		}
+		
 		if (!libraryID) {
 			throw new Error("Library ID not provided");
 		}
 		
 		var t = new Date();
 		
-		var deletedIDs = [];
+		var deleted = await this.getDeleted(libraryID, false, options.days);
 		
-		deletedIDs = yield this.getDeleted(libraryID, true, days);
-		if (deletedIDs.length) {
-			yield Zotero.Utilities.Internal.forEachChunkAsync(deletedIDs, 50, Zotero.Promise.coroutine(function* (chunk) {
-				yield this.erase(chunk);
-				yield Zotero.Notifier.trigger('refresh', 'trash', libraryID);
-			}.bind(this)));
+		if (options.limit) {
+			deleted = deleted.slice(0, options.limit);
 		}
 		
-		if (deletedIDs.length) {
-			Zotero.debug("Emptied " + deletedIDs.length + " item(s) from trash in " + (new Date() - t) + " ms");
+		var processed = 0;
+		if (deleted.length) {
+			let toDelete = {
+				top: [],
+				child: []
+			};
+			deleted.forEach((item) => {
+				item.isTopLevelItem() ? toDelete.top.push(item.id) : toDelete.child.push(item.id)
+			});
+			
+			// Show progress meter during deletions
+			let eraseOptions = options.onProgress
+				? {
+					onProgress: function (progress, progressMax) {
+						options.onProgress(processed + progress, deleted.length);
+					}
+				}
+				: undefined;
+			for (let x of ['top', 'child']) {
+				await Zotero.Utilities.Internal.forEachChunkAsync(
+					toDelete[x],
+					1000,
+					async function (chunk) {
+						await this.erase(chunk, eraseOptions);
+						processed += chunk.length;
+					}.bind(this)
+				);
+			}
+			Zotero.debug("Emptied " + deleted.length + " item(s) from trash in " + (new Date() - t) + " ms");
 		}
 		
-		return deletedIDs.length;
-	});
+		return deleted.length;
+	};
 	
 	
 	/**
 	 * Start idle observer to delete trashed items older than a certain number of days
 	 */
 	this._emptyTrashIdleObserver = null;
-	this._emptyTrashTimer = null;
+	this._emptyTrashTimeoutID = null;
 	this.startEmptyTrashTimer = function () {
 		this._emptyTrashIdleObserver = {
 			observe: (subject, topic, data) => {
@@ -944,30 +951,31 @@ Zotero.Items = function() {
 					//
 					// TODO: increase number after dealing with slow
 					// tag.getLinkedItems() call during deletes
-					var num = 10;
-					this.emptyTrash(Zotero.Libraries.userLibraryID, days, num)
-					.then(deleted => {
+					let num = 50;
+					this.emptyTrash(
+						Zotero.Libraries.userLibraryID,
+						{
+							days,
+							limit: num
+						}
+					)
+					.then((deleted) => {
 						if (!deleted) {
-							this._emptyTrashTimer = null;
+							this._emptyTrashTimeoutID = null;
 							return;
 						}
 						
 						// Set a timer to do more every few seconds
-						if (!this._emptyTrashTimer) {
-							this._emptyTrashTimer = Components.classes["@mozilla.org/timer;1"]
-								.createInstance(Components.interfaces.nsITimer);
-						}
-						this._emptyTrashTimer.init(
-							this._emptyTrashIdleObserver.observe,
-							5 * 1000,
-							Components.interfaces.nsITimer.TYPE_ONE_SHOT
-						);
+						this._emptyTrashTimeoutID = setTimeout(() => {
+							this._emptyTrashIdleObserver.observe(null, 'timer-callback', null);
+						}, 2500);
 					});
 				}
 				// When no longer idle, cancel timer
 				else if (topic == 'back') {
-					if (this._emptyTrashTimer) {
-						this._emptyTrashTimer.cancel();
+					if (this._emptyTrashTimeoutID) {
+						clearTimeout(this._emptyTrashTimeoutID);
+						this._emptyTrashTimeoutID = null;
 					}
 				}
 			}

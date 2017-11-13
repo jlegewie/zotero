@@ -48,7 +48,6 @@
 			<constructor><![CDATA[
 				this.mode = this.getAttribute('mode');
 				
-				this._onInitCallbacks = [];
 				this._iframe = document.getAnonymousElementByAttribute(this, "anonid", "rt-view");
 				
 				// Atomic units, HTML -> RTF (cleanup)
@@ -405,7 +404,10 @@
 								
 								var commandEvent = false;
 								
-								//Zotero.debug(event.type);
+								if (Zotero.Prefs.get('debugNoteEvents')) {
+									Zotero.debug(event.type);
+									Zotero.debug(event.which);
+								}
 								switch (event.type) {
 									case 'keydown':
 										// Intercept and manually trigger redo for Cmd-Shift-Z,
@@ -416,6 +418,12 @@
 											event.preventDefault();
 											this.redo();
 											return;
+										}
+										// Handle forward-delete, which doesn't register as a keypress
+										// when a selection is cleared
+										if (event.which == event.DOM_VK_DELETE) {
+											this._changed = true;
+											commandEvent = true;
 										}
 										break;
 									
@@ -500,6 +508,10 @@
 			<!-- Sets or returns contents of rich text box -->
 			<property name="value">
 				<getter><![CDATA[
+					if (!this._editor) {
+						return null;
+					}
+					
 					var output = this._editor.getContent().trim();
 					
 					if(this._format == "RTF") {
@@ -608,7 +620,9 @@
 			<method name="clearUndo">
 				<body>
 				<![CDATA[
-					this._editor.undoManager.clear();
+					if (this._editor) {
+						this._editor.undoManager.clear();
+					}
 				]]>
 				</body>
 			</method>
@@ -620,6 +634,9 @@
 						callback(this._editor);
 					}
 					else {
+						if (!this._onInitCallbacks) {
+							this._onInitCallbacks = [];
+						}
 						this._onInitCallbacks.push(callback);
 					}
 				]]></body>
@@ -726,8 +743,10 @@
 								}
 								
 								let cb;
-								while (cb = this._onInitCallbacks.shift()) {
-									cb(this._editor);
+								if (this._onInitCallbacks) {
+									while (cb = this._onInitCallbacks.shift()) {
+										cb(this._editor);
+									}
 								}
 							}.bind(this);
 						}

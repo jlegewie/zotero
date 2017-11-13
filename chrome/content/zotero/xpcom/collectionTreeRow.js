@@ -25,8 +25,8 @@
 
 "use strict";
 
-Zotero.CollectionTreeRow = function(type, ref, level, isOpen)
-{
+Zotero.CollectionTreeRow = function (collectionTreeView, type, ref, level, isOpen) {
+	this.view = collectionTreeView;
 	this.type = type;
 	this.ref = ref;
 	this.level = level || 0
@@ -343,6 +343,7 @@ Zotero.CollectionTreeRow.prototype.getSearchObject = Zotero.Promise.coroutine(fu
 	
 	// Create the outer (filter) search
 	var s2 = new Zotero.Search();
+	s2.addCondition('libraryID', 'is', this.ref.libraryID);
 	
 	if (this.isTrash()) {
 		s2.addCondition('deleted', 'true');
@@ -380,8 +381,8 @@ Zotero.CollectionTreeRow.prototype.getChildTags = Zotero.Promise.coroutine(funct
 		case 'bucket':
 			return [];
 	}
-	var results = yield this.getSearchResults();
-	return Zotero.Tags.getAllWithinItemsList(results);
+	var results = yield this.getSearchResults(true);
+	return Zotero.Tags.getAllWithinSearchResults(results);
 });
 
 

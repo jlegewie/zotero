@@ -65,6 +65,11 @@
 					switch (val) {
 						case 'view':
 						case 'merge':
+							// If there's an existing editor, mark it as read-only. This allows for
+							// disabling an existing editable note (e.g., if there's a save error).
+							if (this.noteField) {
+								this.noteField.onInit(ed => ed.setMode('readonly'));
+							}
 							break;
 						
 						case 'edit':
@@ -243,27 +248,29 @@
 			</method>
 			
 			<method name="save">
-				<body>
-					<![CDATA[
-						return Zotero.spawn(function* () {
+				<body><![CDATA[
+					return Zotero.spawn(function* () {
+						try {
 							if (this._mode == 'view') {
 								Zotero.debug("Not saving read-only note");
 								return;
 							}
 							
-							// Update note
 							var noteField = this._id('noteField');
+							var value = noteField.value;
+							if (value === null) {
+								Zotero.debug("Note value not available -- not saving", 2);
+								return;
+							}
+							
+							// Update note
 							if (this.item) {
 								// If note field doesn't match item, abort save and run error handler
 								if (noteField.getAttribute('itemID') != this.item.id) {
-									if (this.hasAttribute('onerror')) {
-										let fn = new Function("", this.getAttribute('onerror'));
-										fn.call(this)
-									}
 									throw new Error("Note field doesn't match current item");
 								}
 								
-								let changed = this.item.setNote(noteField.value);
+								let changed = this.item.setNote(value);
 								if (changed && this.saveOnEdit) {
 									this.noteField.changed = false;
 									yield this.item.saveTx({
@@ -280,7 +287,7 @@
 							if (this.parentItem) {
 								item.libraryID = this.parentItem.libraryID;
 							}
-							item.setNote(noteField.value);
+							item.setNote(value);
 							if (this.parentItem) {
 								item.parentKey = this.parentItem.key;
 							}
@@ -292,10 +299,21 @@
 								}
 							}
 							
-							this.item = yield Zotero.Items.getAsync(id);
-						}.bind(this));
-					]]>
-				</body>
+							this.item = item;
+						}
+						catch (e) {
+							Zotero.logError(e);
+							
+							if (this.hasAttribute('onerror')) {
+								let fn = new Function("", this.getAttribute('onerror'));
+								fn.call(this)
+							}
+							if (this.onError) {
+								this.onError(e);
+							}
+						}
+					}.bind(this));
+				]]></body>
 			</method>
 			
 			<!-- Used to insert a tab manually -->

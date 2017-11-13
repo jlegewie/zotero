@@ -244,6 +244,110 @@ describe("ZoteroPane", function() {
 	})
 	
 	
+	describe("#renameSelectedAttachmentsFromParents()", function () {
+		it("should rename a linked file", async function () {
+			var oldFilename = 'old.png';
+			var newFilename = 'Test.png';
+			var file = getTestDataDirectory();
+			file.append('test.png');
+			var tmpDir = await getTempDirectory();
+			var oldFile = OS.Path.join(tmpDir, oldFilename);
+			await OS.File.copy(file.path, oldFile);
+			
+			var item = createUnsavedDataObject('item');
+			item.setField('title', 'Test');
+			await item.saveTx();
+			
+			var attachment = await Zotero.Attachments.linkFromFile({
+				file: oldFile,
+				parentItemID: item.id
+			});
+			await zp.selectItem(attachment.id);
+			
+			await assert.eventually.isTrue(zp.renameSelectedAttachmentsFromParents());
+			assert.equal(attachment.attachmentFilename, newFilename);
+			var path = await attachment.getFilePathAsync();
+			assert.equal(OS.Path.basename(path), newFilename)
+			await OS.File.exists(path);
+		});
+		
+		it("should use unique name for linked file if target name is taken", async function () {
+			var oldFilename = 'old.png';
+			var newFilename = 'Test.png';
+			var uniqueFilename = 'Test 2.png';
+			var file = getTestDataDirectory();
+			file.append('test.png');
+			var tmpDir = await getTempDirectory();
+			var oldFile = OS.Path.join(tmpDir, oldFilename);
+			await OS.File.copy(file.path, oldFile);
+			// Create file with target filename
+			await Zotero.File.putContentsAsync(OS.Path.join(tmpDir, newFilename), '');
+			
+			var item = createUnsavedDataObject('item');
+			item.setField('title', 'Test');
+			await item.saveTx();
+			
+			var attachment = await Zotero.Attachments.linkFromFile({
+				file: oldFile,
+				parentItemID: item.id
+			});
+			await zp.selectItem(attachment.id);
+			
+			await assert.eventually.isTrue(zp.renameSelectedAttachmentsFromParents());
+			assert.equal(attachment.attachmentFilename, uniqueFilename);
+			var path = await attachment.getFilePathAsync();
+			assert.equal(OS.Path.basename(path), uniqueFilename)
+			await OS.File.exists(path);
+		});
+		
+		it("should use unique name for linked file without extension if target name is taken", async function () {
+			var oldFilename = 'old';
+			var newFilename = 'Test';
+			var uniqueFilename = 'Test 2';
+			var file = getTestDataDirectory();
+			file.append('test.png');
+			var tmpDir = await getTempDirectory();
+			var oldFile = OS.Path.join(tmpDir, oldFilename);
+			await OS.File.copy(file.path, oldFile);
+			// Create file with target filename
+			await Zotero.File.putContentsAsync(OS.Path.join(tmpDir, newFilename), '');
+			
+			var item = createUnsavedDataObject('item');
+			item.setField('title', 'Test');
+			await item.saveTx();
+			
+			var attachment = await Zotero.Attachments.linkFromFile({
+				file: oldFile,
+				parentItemID: item.id
+			});
+			await zp.selectItem(attachment.id);
+			
+			await assert.eventually.isTrue(zp.renameSelectedAttachmentsFromParents());
+			assert.equal(attachment.attachmentFilename, uniqueFilename);
+			var path = await attachment.getFilePathAsync();
+			assert.equal(OS.Path.basename(path), uniqueFilename)
+			await OS.File.exists(path);
+		});
+	});
+	
+	
+	describe("#duplicateSelectedItem()", function () {
+		it("should add reverse relations", async function () {
+			await selectLibrary(win);
+			var item1 = await createDataObject('item');
+			var item2 = await createDataObject('item');
+			item1.addRelatedItem(item2);
+			await item1.saveTx();
+			item2.addRelatedItem(item1);
+			await item2.saveTx();
+			var item3 = await zp.duplicateSelectedItem();
+			assert.sameMembers(item3.relatedItems, [item1.key]);
+			assert.sameMembers(item2.relatedItems, [item1.key]);
+			assert.sameMembers(item1.relatedItems, [item2.key, item3.key]);
+		});
+	});
+	
+	
 	describe("#deleteSelectedItems()", function () {
 		it("should remove an item from My Publications", function* () {
 			var item = createUnsavedDataObject('item');

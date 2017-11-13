@@ -402,7 +402,18 @@ Zotero.DataObject.prototype.removeRelation = function (predicate, object) {
 Zotero.DataObject.prototype.setRelations = function (newRelations) {
 	this._requireData('relations');
 	
+	if (typeof newRelations != 'object') {
+		throw new Error(`Relations must be an object (${typeof newRelations} given)`);
+	}
+	
 	var oldRelations = this._relations;
+	
+	// Limit predicates to letters and colons for now
+	for (let p in newRelations) {
+		if (!/[a-z]+:[a-z]+/.test(p)) {
+			throw new Error(`Invalid relation predicate '${p}'`);
+		}
+	}
 	
 	// Relations are stored internally as a flat array with individual predicate-object pairs,
 	// so convert the incoming relations to that
@@ -1160,7 +1171,7 @@ Zotero.DataObject.prototype.updateSynced = Zotero.Promise.coroutine(function* (s
  */
 Zotero.DataObject.prototype.erase = Zotero.Promise.coroutine(function* (options = {}) {
 	if (!options || typeof options != 'object') {
-		throw new Error("'options' must be an object");
+		throw new Error("'options' must be an object (" + typeof options + ")");
 	}
 	
 	var env = {

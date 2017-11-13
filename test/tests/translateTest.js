@@ -221,7 +221,24 @@ describe("Zotero.Translate", function() {
 			assert.equal(note3.getNote(), "standalone note");
 			checkTestTags(note3);
 		});
-
+		
+		it('should save relations', async function () {
+			var item = await createDataObject('item');
+			var itemURI = Zotero.URI.getItemURI(item);
+			let myItem = {
+				itemType: "book",
+				title: "Test Item",
+				relations: {
+					"dc:relation": [itemURI]
+				}
+			};
+			let newItems = await saveItemsThroughTranslator("import", [myItem]);
+			var relations = newItems[0].getRelations();
+			assert.lengthOf(Object.keys(relations), 1);
+			assert.lengthOf(relations["dc:relation"], 1);
+			assert.equal(relations["dc:relation"][0], itemURI);
+		});
+		
 		it('should save collections', function* () {
 			let translate = new Zotero.Translate.Import();
 			translate.setString("");
@@ -469,11 +486,15 @@ describe("Zotero.Translate", function() {
 			checkTestTags(pdf, true);
 		});
 
-		it('web translators should save attachment from document', function* () {
+		it('web translators should save attachment from browser document', function* () {
 			let deferred = Zotero.Promise.defer();
-			let browser = Zotero.HTTP.processDocuments("http://127.0.0.1:23119/test/translate/test.html",
-				                                       function (doc) { deferred.resolve(doc) }, undefined,
-				                                       undefined, true);
+			let browser = Zotero.HTTP.loadDocuments(
+				"http://127.0.0.1:23119/test/translate/test.html",
+				doc => deferred.resolve(doc),
+				undefined,
+				undefined,
+				true
+			);
 			let doc = yield deferred.promise;
 
 			let translate = new Zotero.Translate.Web();
@@ -493,7 +514,7 @@ describe("Zotero.Translate", function() {
 				'}'));
 			let newItems = yield translate.translate();
 			assert.equal(newItems.length, 1);
-			let containedAttachments = yield Zotero.Items.getAsync(newItems[0].getAttachments());
+			let containedAttachments = Zotero.Items.get(newItems[0].getAttachments());
 			assert.equal(containedAttachments.length, 1);
 
 			let snapshot = containedAttachments[0];
@@ -504,6 +525,40 @@ describe("Zotero.Translate", function() {
 			checkTestTags(snapshot, true);
 
 			Zotero.Browser.deleteHiddenBrowser(browser);
+		});
+		
+		it('web translators should save attachment from non-browser document', function* () {
+			return Zotero.HTTP.processDocuments(
+				"http://127.0.0.1:23119/test/translate/test.html",
+				async function (doc) {
+					let translate = new Zotero.Translate.Web();
+					translate.setDocument(doc);
+					translate.setTranslator(buildDummyTranslator(4,
+						'function detectWeb() {}\n'+
+						'function doWeb(doc) {\n'+
+						'	var item = new Zotero.Item("book");\n'+
+						'	item.title = "Container Item";\n'+
+						'	item.attachments = [{\n'+
+						'		"document":doc,\n'+
+						'		"title":"Snapshot from Document",\n'+
+						'		"note":"attachment note",\n'+
+						'		"tags":'+JSON.stringify(TEST_TAGS)+'\n'+
+						'	}];\n'+
+						'	item.complete();\n'+
+						'}'));
+					let newItems = await translate.translate();
+					assert.equal(newItems.length, 1);
+					let containedAttachments = Zotero.Items.get(newItems[0].getAttachments());
+					assert.equal(containedAttachments.length, 1);
+		
+					let snapshot = containedAttachments[0];
+					assert.equal(snapshot.getField("url"), "http://127.0.0.1:23119/test/translate/test.html");
+					assert.equal(snapshot.getNote(), "attachment note");
+					assert.equal(snapshot.attachmentLinkMode, Zotero.Attachments.LINK_MODE_IMPORTED_URL);
+					assert.equal(snapshot.attachmentContentType, "text/html");
+					checkTestTags(snapshot, true);
+				}
+			);
 		});
 
 		it('web translators should ignore attachments that return error codes', function* () {
@@ -608,6 +663,117 @@ describe("Zotero.Translate", function() {
 			assert.deepEqual([{tag: 'owl'}, {tag: 'tag'}], items[0].getTags());
 			
 			Zotero.Translators.get.restore();
+		});
+	});
+	
+	
+	describe("#processDocuments()", function () {
+		var url = "http://127.0.0.1:23119/test/translate/test.html";
+		var doc;
+		
+		beforeEach(function* () {
+			// This is the main processDocuments, not the translation sandbox one being tested
+			doc = (yield Zotero.HTTP.processDocuments(url, doc => doc))[0];
+		});
+		
+		it("should provide document object", async function () {
+			var translate = new Zotero.Translate.Web();
+			translate.setDocument(doc);
+			translate.setTranslator(
+				buildDummyTranslator(
+					4,
+					`function detectWeb() {}
+					function doWeb(doc) {
+						ZU.processDocuments(
+							doc.location.href + '?t',
+							function (doc) {
+								var item = new Zotero.Item("book");
+								item.title = "Container Item";
+								// document.location
+								item.url = doc.location.href;
+								// document.evaluate()
+								item.extra = doc
+									.evaluate('//p', doc, null, XPathResult.ANY_TYPE, null)
+									.iterateNext()
+									.textContent;
+								item.attachments = [{
+									document: doc,
+									title: "Snapshot from Document",
+									note: "attachment note",
+									tags: ${JSON.stringify(TEST_TAGS)}
+								}];
+								item.complete();
+							}
+						);
+					}`
+				)
+			);
+			var newItems = await translate.translate();
+			assert.equal(newItems.length, 1);
+			
+			var item = newItems[0];
+			assert.equal(item.getField('url'), url + '?t');
+			assert.include(item.getField('extra'), 'your research sources');
+			
+			var containedAttachments = Zotero.Items.get(newItems[0].getAttachments());
+			assert.equal(containedAttachments.length, 1);
+			
+			var snapshot = containedAttachments[0];
+			assert.equal(snapshot.getField("url"), url + '?t');
+			assert.equal(snapshot.getNote(), "attachment note");
+			assert.equal(snapshot.attachmentLinkMode, Zotero.Attachments.LINK_MODE_IMPORTED_URL);
+			assert.equal(snapshot.attachmentContentType, "text/html");
+			checkTestTags(snapshot, true);
+		});
+		
+		it("should use loaded document instead of reloading if possible", function* () {
+			var translate = new Zotero.Translate.Web();
+			translate.setDocument(doc);
+			translate.setTranslator(
+				buildDummyTranslator(
+					4,
+					`function detectWeb() {}
+					function doWeb(doc) {
+						ZU.processDocuments(
+							doc.location.href,
+							function (doc) {
+								var item = new Zotero.Item("book");
+								item.title = "Container Item";
+								// document.location
+								item.url = doc.location.href;
+								// document.evaluate()
+								item.extra = doc
+									.evaluate('//p', doc, null, XPathResult.ANY_TYPE, null)
+									.iterateNext()
+									.textContent;
+								item.attachments = [{
+									document: doc,
+									title: "Snapshot from Document",
+									note: "attachment note",
+									tags: ${JSON.stringify(TEST_TAGS)}
+								}];
+								item.complete();
+							}
+						);
+					}`
+				)
+			);
+			var newItems = yield translate.translate();
+			assert.equal(newItems.length, 1);
+			
+			var item = newItems[0];
+			assert.equal(item.getField('url'), url);
+			assert.include(item.getField('extra'), 'your research sources');
+			
+			var containedAttachments = Zotero.Items.get(newItems[0].getAttachments());
+			assert.equal(containedAttachments.length, 1);
+			
+			var snapshot = containedAttachments[0];
+			assert.equal(snapshot.getField("url"), url);
+			assert.equal(snapshot.getNote(), "attachment note");
+			assert.equal(snapshot.attachmentLinkMode, Zotero.Attachments.LINK_MODE_IMPORTED_URL);
+			assert.equal(snapshot.attachmentContentType, "text/html");
+			checkTestTags(snapshot, true);
 		});
 	});
 	
@@ -1072,67 +1238,73 @@ describe("Zotero.Translate.ItemGetter", function() {
 			assert.equal(translatorItem.collections.length, 1, 'item in a single nested collection lists one collection');
 			assert.equal(translatorItem.collections[0], collections[2].key, 'item in a single collection identifies correct collection');
 		}));
-		// it('should return item relations in expected format', Zotero.Promise.coroutine(function* () {
-		// 	let getter = new Zotero.Translate.ItemGetter();
-		// 	let items;
+		
+		it('should return item relations in expected format', Zotero.Promise.coroutine(function* () {
+			let getter = new Zotero.Translate.ItemGetter();
+			let items;
 			
-		// 	yield Zotero.DB.executeTransaction(function* () {
-		// 		items = [
-		// 			new Zotero.Item('journalArticle'), // Item with no relations
+			yield Zotero.DB.executeTransaction(function* () {
+					items = [
+						new Zotero.Item('journalArticle'), // Item with no relations
+						
+						new Zotero.Item('journalArticle'), // Bidirectional relations
+						new Zotero.Item('journalArticle'), // between these items
+						
+						new Zotero.Item('journalArticle'), // This item is related to two items below
+						new Zotero.Item('journalArticle'), // But this item is not related to the item below
+						new Zotero.Item('journalArticle')
+					];
+					yield Zotero.Promise.all(items.map(item => item.save()));
 					
-		// 			new Zotero.Item('journalArticle'), // Relation set on this item
-		// 			new Zotero.Item('journalArticle'), // To this item
+					yield items[1].addRelatedItem(items[2]);
+					yield items[2].addRelatedItem(items[1]);
 					
-		// 			new Zotero.Item('journalArticle'), // This item is related to two items below
-		// 			new Zotero.Item('journalArticle'), // But this item is not related to the item below
-		// 			new Zotero.Item('journalArticle')
-		// 		];
-		// 		yield Zotero.Promise.all(items.map(item => item.save()));
-				
-		// 		yield items[1].addRelatedItem(items[2].id);
-				
-		// 		yield items[3].addRelatedItem(items[4].id);
-		// 		yield items[3].addRelatedItem(items[5].id);
-		// 	});
+					yield items[3].addRelatedItem(items[4]);
+					yield items[4].addRelatedItem(items[3]);
+					yield items[3].addRelatedItem(items[5]);
+					yield items[5].addRelatedItem(items[3]);
+			});
 			
-		// 	getter._itemsLeft = items.slice();
+			getter._itemsLeft = items.slice();
 			
-		// 	let translatorItem = getter.nextItem();
-		// 	assert.isObject(translatorItem.relations, 'item with no relations has a relations object');
-		// 	assert.equal(Object.keys(translatorItem.relations).length, 0, 'item with no relations does not list any relations');
+			let translatorItem = getter.nextItem();
+			assert.isObject(translatorItem.relations, 'item with no relations has a relations object');
+			assert.equal(Object.keys(translatorItem.relations).length, 0, 'item with no relations does not list any relations');
 			
-		// 	translatorItem = getter.nextItem();
-		// 	assert.isObject(translatorItem.relations, 'item that is the subject of a single relation has a relations object');
-		// 	assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the subject of a single relation list one relations predicate');
-		// 	assert.isDefined(translatorItem.relations['dc:relation'], 'item that is the subject of a single relation uses "dc:relation" as the predicate');
-		// 	assert.isString(translatorItem.relations['dc:relation'], 'item that is the subject of a single relation lists "dc:relation" object as a string');
-		// 	assert.equal(translatorItem.relations['dc:relation'], Zotero.URI.getItemURI(items[2]), 'item that is the subject of a single relation identifies correct object URI');
+			translatorItem = getter.nextItem();
 			
-		// 	translatorItem = getter.nextItem();
-		// 	assert.isObject(translatorItem.relations, 'item that is the object of a single relation has a relations object');
-		// 	assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the object of a single relation list one relations predicate');
-		// 	assert.isDefined(translatorItem.relations['dc:relation'], 'item that is the object of a single relation uses "dc:relation" as the predicate');
-		// 	assert.isString(translatorItem.relations['dc:relation'], 'item that is the object of a single relation lists "dc:relation" object as a string');
-		// 	assert.equal(translatorItem.relations['dc:relation'], Zotero.URI.getItemURI(items[1]), 'item that is the object of a single relation identifies correct subject URI');
+			assert.isObject(translatorItem.relations, 'item that is the subject of a single relation has a relations object');
+			assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the subject of a single relation lists one relations predicate');
+			assert.lengthOf(translatorItem.relations['dc:relation'], 1, 'item that is the subject of a single relation lists one "dc:relation" object');
+			assert.equal(translatorItem.relations['dc:relation'][0], Zotero.URI.getItemURI(items[2]), 'item that is the subject of a single relation identifies correct object URI');
 			
-		// 	translatorItem = getter.nextItem();
-		// 	assert.isObject(translatorItem.relations, 'item that is the subject of two relations has a relations object');
-		// 	assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the subject of two relations list one relations predicate');
-		// 	assert.isDefined(translatorItem.relations['dc:relation'], 'item that is the subject of two relations uses "dc:relation" as the predicate');
-		// 	assert.isArray(translatorItem.relations['dc:relation'], 'item that is the subject of two relations lists "dc:relation" object as an array');
-		// 	assert.equal(translatorItem.relations['dc:relation'].length, 2, 'item that is the subject of two relations lists two relations in the "dc:relation" array');
-		// 	assert.deepEqual(translatorItem.relations['dc:relation'].sort(),
-		// 		[Zotero.URI.getItemURI(items[4]), Zotero.URI.getItemURI(items[5])].sort(),
-		// 		'item that is the subject of two relations identifies correct object URIs'
-		// 	);
+			// We currently assign these bidirectionally above, so this is a bit redundant
+			translatorItem = getter.nextItem();
+			assert.isObject(translatorItem.relations, 'item that is the object of a single relation has a relations object');
+			assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the object of a single relation list one relations predicate');
+			assert.lengthOf(translatorItem.relations['dc:relation'], 1, 'item that is the object of a single relation lists one "dc:relation" object');
+			assert.equal(translatorItem.relations['dc:relation'][0], Zotero.URI.getItemURI(items[1]), 'item that is the object of a single relation identifies correct subject URI');
 			
-		// 	translatorItem = getter.nextItem();
-		// 	assert.isObject(translatorItem.relations, 'item that is the object of one relation from item with two relations has a relations object');
-		// 	assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the object of one relation from item with two relations list one relations predicate');
-		// 	assert.isDefined(translatorItem.relations['dc:relation'], 'item that is the object of one relation from item with two relations uses "dc:relation" as the predicate');
-		// 	assert.isString(translatorItem.relations['dc:relation'], 'item that is the object of one relation from item with two relations lists "dc:relation" object as a string');
-		// 	assert.equal(translatorItem.relations['dc:relation'], Zotero.URI.getItemURI(items[3]), 'item that is the object of one relation from item with two relations identifies correct subject URI');
-		// }));
+			translatorItem = getter.nextItem();
+			assert.isObject(translatorItem.relations, 'item that is the subject of two relations has a relations object');
+			assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the subject of two relations list one relations predicate');
+			assert.isDefined(translatorItem.relations['dc:relation'], 'item that is the subject of two relations uses "dc:relation" as the predicate');
+			assert.isArray(translatorItem.relations['dc:relation'], 'item that is the subject of two relations lists "dc:relation" object as an array');
+			assert.equal(translatorItem.relations['dc:relation'].length, 2, 'item that is the subject of two relations lists two relations in the "dc:relation" array');
+			assert.deepEqual(
+				translatorItem.relations['dc:relation'].sort(),
+				[Zotero.URI.getItemURI(items[4]), Zotero.URI.getItemURI(items[5])].sort(),
+				'item that is the subject of two relations identifies correct object URIs'
+			);
+			
+			translatorItem = getter.nextItem();
+			assert.isObject(translatorItem.relations, 'item that is the object of one relation from item with two relations has a relations object');
+			assert.equal(Object.keys(translatorItem.relations).length, 1, 'item that is the object of one relation from item with two relations list one relations predicate');
+			assert.isDefined(translatorItem.relations['dc:relation'], 'item that is the object of one relation from item with two relations uses "dc:relation" as the predicate');
+			assert.lengthOf(translatorItem.relations['dc:relation'], 1, 'item that is the object of one relation from item with two relations lists one "dc:relation" object');
+			assert.equal(translatorItem.relations['dc:relation'][0], Zotero.URI.getItemURI(items[3]), 'item that is the object of one relation from item with two relations identifies correct subject URI');
+		}));
+		
 		it('should return standalone note in expected format', Zotero.Promise.coroutine(function* () {
 			let relatedItem, note, collection;
 			
@@ -1144,8 +1316,11 @@ describe("Zotero.Translate.ItemGetter", function() {
 				note.setNote('Note');
 				note.addTag('automaticTag', 0);
 				note.addTag('manualTag', 1);
-				// note.addRelatedItem(relatedItem.id);
+				note.addRelatedItem(relatedItem);
 				yield note.save();
+				
+				relatedItem.addRelatedItem(note);
+				yield relatedItem.save();
 				
 				collection = new Zotero.Collection;
 				collection.name = 'test';
@@ -1202,9 +1377,9 @@ describe("Zotero.Translate.ItemGetter", function() {
 				}
 				
 				// Relations
-				// assert.isObject(translatorNote.relations, 'has relations as object' + suffix);
-				// assert.equal(translatorNote.relations['dc:relation'], Zotero.URI.getItemURI(relatedItem), 'relation is correct' + suffix);
-				/** TODO: test other relations and multiple relations per predicate (should be an array) **/
+				assert.isObject(translatorNote.relations, 'has relations as object' + suffix);
+				assert.lengthOf(translatorNote.relations['dc:relation'], 1, 'has one relation' + suffix);
+				assert.equal(translatorNote.relations['dc:relation'][0], Zotero.URI.getItemURI(relatedItem), 'relation is correct' + suffix);
 				
 				if (!legacy) {
 					// Collections
@@ -1238,7 +1413,10 @@ describe("Zotero.Translate.ItemGetter", function() {
 				note.addTag('manualTag', 1);
 				yield note.save();
 				
-				// note.addRelatedItem(relatedItem.id);
+				note.addRelatedItem(relatedItem);
+				relatedItem.addRelatedItem(note);
+				yield note.save();
+				yield relatedItem.save();
 			});
 			
 			let legacyMode = [false, true];
@@ -1306,9 +1484,9 @@ describe("Zotero.Translate.ItemGetter", function() {
 				}
 				
 				// Relations
-				// assert.isObject(translatorNote.relations, 'has relations as object' + suffix);
-				// assert.equal(translatorNote.relations['dc:relation'], Zotero.URI.getItemURI(relatedItem), 'relation is correct' + suffix);
-				/** TODO: test other relations and multiple relations per predicate (should be an array) **/
+				assert.isObject(translatorNote.relations, 'has relations as object' + suffix);
+				assert.lengthOf(translatorNote.relations['dc:relation'], 1, 'has one relation' + suffix);
+				assert.equal(translatorNote.relations['dc:relation'][0], Zotero.URI.getItemURI(relatedItem), 'relation is correct' + suffix);
 				
 				if (!legacy) {
 					// Collections
@@ -1349,11 +1527,15 @@ describe("Zotero.Translate.ItemGetter", function() {
 				
 					attachment.addTag('automaticTag', 0);
 					attachment.addTag('manualTag', 1);
-				
-					// attachment.addRelatedItem(relatedItem.id);
-				
+					
+					attachment.addRelatedItem(relatedItem);
+					
 					yield attachment.save();
+					
+					relatedItem.addRelatedItem(attachment);
 				}
+				
+				yield relatedItem.save();
 			});
 			
 			let items = [ attachments[0], attachments[1], item ]; // Standalone attachments and item with child attachments
@@ -1518,8 +1700,9 @@ describe("Zotero.Translate.ItemGetter", function() {
 					}
 					
 					// Relations
-					// assert.isObject(attachment.relations, prefix + 'has relations as object' + suffix);
-					// assert.equal(attachment.relations['dc:relation'], Zotero.URI.getItemURI(relatedItem), prefix + 'relation is correct' + suffix);
+					assert.isObject(attachment.relations, prefix + 'has relations as object' + suffix);
+					assert.lengthOf(attachment.relations['dc:relation'], 1, prefix + 'has one relation' + suffix);
+					assert.equal(attachment.relations['dc:relation'][0], Zotero.URI.getItemURI(relatedItem), prefix + 'relation is correct' + suffix);
 					/** TODO: test other relations and multiple relations per predicate (should be an array) **/
 				}
 			}
